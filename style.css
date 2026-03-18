@@ -195,6 +195,11 @@ h1 {
     letter-spacing: -0.5px;
 }
 
+/* 「フォルダ」ボタンのみ文字を少し小さく */
+.actions.actions-grid-4 .upload-btn-folder {
+    font-size: 0.33rem;
+}
+
 .mask-ctrl-grid {
     margin-bottom: 0.3rem;
 }
@@ -1251,6 +1256,11 @@ body.dark-theme .color-btn.active {
         height: auto;
         font-size: 0.7rem; /* 4列用に少し小さく */
         padding: 0.4rem 0.1rem; /* 左右パディングを詰める */
+    }
+
+    /* 「フォルダ」ボタンのみ文字を少し小さく (モバイル) */
+    .actions.actions-grid-4 .upload-btn-folder {
+        font-size: 0.58rem;
     }
 
     /* nav-img-btn もタッチしやすく */
