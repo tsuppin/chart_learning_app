@@ -58,10 +58,18 @@
 
                 <div class="panel-scroll-area">
                 <div class="status-panel">
-                        <div id="imageNavArea" class="image-nav-area status-nav-row">
-                            <button id="prevImageBtn" class="nav-img-btn" title="前の画像">◀</button>
-                            <span id="imageIndexLabel" class="image-nav-label">1/1</span>
-                            <button id="nextImageBtn" class="nav-img-btn" title="次の画像">▶</button>
+                        <div class="top-nav-row">
+                            <div id="imageNavArea" class="image-nav-area">
+                                <button id="prevImageBtn" class="nav-img-btn" title="前の画像">◀</button>
+                                <span id="imageIndexLabel" class="image-nav-label">1/1</span>
+                                <button id="nextImageBtn" class="nav-img-btn" title="次の画像">▶</button>
+                            </div>
+                            
+                            <div class="autoplay-speed-ctrl inline-speed">
+                                <button id="speedDecBtn" class="small-btn">−</button>
+                                <input type="number" id="speedValueInput" value="0.6" min="0.1" max="2.0" step="0.1" readonly title="自動再生間隔 (秒)">
+                                <button id="speedIncBtn" class="small-btn">+</button>
+                            </div>
                         </div>
 
                         <div class="status-header-row">
@@ -71,12 +79,6 @@
                             <div class="step-display">
                                 <span id="currentStep" class="step-number">0</span>
                                 <button id="resetCurrentBtn" class="small-btn" title="この画像をリセット" disabled>↺</button>
-                            </div>
-
-                            <div class="autoplay-speed-ctrl inline-speed">
-                                <button id="speedDecBtn" class="small-btn">−</button>
-                                <input type="number" id="speedValueInput" value="0.6" min="0.1" max="2.0" step="0.1" readonly title="自動再生間隔 (秒)">
-                                <button id="speedIncBtn" class="small-btn">+</button>
                             </div>
                         </div>
 

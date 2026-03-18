@@ -54,17 +54,7 @@ body {
     height: 100%;
 }
 
-/* Image navigation area in status panel */
-.image-nav-area {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 0.8rem;
-}
-
-.image-nav-area.visible {
-    display: flex;
-}
+/* 整理のため削除 (後段で再定義) */
 
 .image-nav-label {
     font-size: 0.9rem;
@@ -288,7 +278,7 @@ main {
 
 /* Control Panel */
 .control-panel {
-    width: 200px;
+    width: 215px;
     background-color: var(--panel-bg);
     border-left: 1px solid var(--border-color);
     padding: 0.8rem;
@@ -528,7 +518,7 @@ body.dark-theme .calibration-section.price-cal .calibrate-status.hint {
 
 .status-header-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     align-items: center;
     gap: 1.5px; /* 要素間の隙間をさらに詰める */
     padding: 0.3rem 0; /* 左右パディングをなくして幅を広げる */
@@ -551,6 +541,16 @@ body.dark-theme .calibration-section.price-cal .calibrate-status.hint {
     font-weight: 600;
 }
 
+.top-nav-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+    margin-bottom: 0.4rem;
+    padding: 0 0 0.4rem 0; /* 左右パディング無し、下部パディング維持 */
+    border-bottom: 1px dashed var(--border-color);
+}
+
 .status-nav-row {
     margin-bottom: 0.4rem;
     padding: 0 0.8rem;
@@ -559,11 +559,18 @@ body.dark-theme .calibration-section.price-cal .calibrate-status.hint {
 }
 
 .image-nav-area {
-    display: none;
+    display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 0.3rem;
-    flex: 1;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+}
+
+.image-nav-area.visible {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .image-nav-label {
@@ -592,12 +599,12 @@ body.dark-theme .calibration-section.price-cal .calibrate-status.hint {
 .inline-speed {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
     gap: 1px;
     background: var(--input-bg);
     border-radius: 4px;
     padding: 1px;
-    width: 100%;
+    width: auto;
 }
 
 .inline-speed input {
@@ -1241,7 +1248,8 @@ body.dark-theme .color-btn.active {
         font-size: 0.82rem;
     }
 
-    .step-control .small-btn {
+    .step-control .small-btn,
+    .inline-speed .small-btn {
         width: 36px !important;
         height: 36px !important;
         min-height: 36px !important;
@@ -1314,9 +1322,9 @@ body.dark-theme .color-btn.active {
     }
 
     .canvas-container {
-        flex: 0 0 45dvh;
-        min-height: 220px;
-        max-height: 55dvh;
+        flex: 0 0 55dvh;
+        min-height: 260px;
+        max-height: 65dvh;
         border-bottom: 1px solid var(--border-color);
         overflow: auto;
         overscroll-behavior: contain;
