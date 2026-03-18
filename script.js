@@ -198,6 +198,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sellInput) sellInput.addEventListener('input', () => updatePLDisplay());
     if (buyInput) buyInput.addEventListener('input', () => updatePLDisplay());
 
+    const sellDecBtn = document.getElementById('sellDec');
+    const sellIncBtn = document.getElementById('sellInc');
+    const buyDecBtn = document.getElementById('buyDec');
+    const buyIncBtn = document.getElementById('buyInc');
+
+    function adjustPosition(inputEl, delta) {
+        if (!inputEl) return;
+        let val = parseInt(inputEl.value) || 0;
+        val += delta;
+        if (val < 0) val = 0;
+        inputEl.value = val;
+        updatePLDisplay();
+    }
+
+    if (sellDecBtn) sellDecBtn.addEventListener('click', () => adjustPosition(sellInput, -100));
+    if (sellIncBtn) sellIncBtn.addEventListener('click', () => adjustPosition(sellInput, 100));
+    if (buyDecBtn) buyDecBtn.addEventListener('click', () => adjustPosition(buyInput, -100));
+    if (buyIncBtn) buyIncBtn.addEventListener('click', () => adjustPosition(buyInput, 100));
+
     // Step Control
     if (stepDecBtn) stepDecBtn.addEventListener('click', () => adjustStep(-1));
     if (stepIncBtn) stepIncBtn.addEventListener('click', () => adjustStep(1));

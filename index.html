@@ -141,7 +141,6 @@
 
                 <!-- 株価・建玉セクション -->
                 <div class="input-group stockprice-group">
-                    <h3>💹 株価・建玉</h3>
 
                     <div class="price-input-container">
                         <label for="currentPrice">現在株価</label>
@@ -150,12 +149,20 @@
 
                     <div class="position-inputs vertical">
                         <div class="input-wrapper red">
-                            <label for="sellPos">🔴 売</label>
-                            <input type="number" id="sellPos" value="0" min="0">
+                            <label for="buyPos">🔴 買</label>
+                            <div class="step-control">
+                                <button id="buyDec" class="small-btn">−</button>
+                                <input type="number" id="buyPos" value="0" min="0" step="100">
+                                <button id="buyInc" class="small-btn">+</button>
+                            </div>
                         </div>
                         <div class="input-wrapper blue">
-                            <label for="buyPos">🔵 買</label>
-                            <input type="number" id="buyPos" value="0" min="0">
+                            <label for="sellPos">🔵 売</label>
+                            <div class="step-control">
+                                <button id="sellDec" class="small-btn">−</button>
+                                <input type="number" id="sellPos" value="0" min="0" step="100">
+                                <button id="sellInc" class="small-btn">+</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -166,25 +173,25 @@
 
                     <!-- 建値情報 -->
                     <div class="entry-prices" id="entryPricesSection">
-                        <div class="entry-price-row hidden" id="sellEntryRow">
-                            <span class="entry-label">🔴 売り建値</span>
-                            <span class="entry-value" id="avgSellPriceDisplay">-</span>
-                        </div>
                         <div class="entry-price-row hidden" id="buyEntryRow">
-                            <span class="entry-label">🔵 買い建値</span>
+                            <span class="entry-label">🔴 買い建値</span>
                             <span class="entry-value" id="avgBuyPriceDisplay">-</span>
+                        </div>
+                        <div class="entry-price-row hidden" id="sellEntryRow">
+                            <span class="entry-label">🔵 売り建値</span>
+                            <span class="entry-value" id="avgSellPriceDisplay">-</span>
                         </div>
                     </div>
 
                     <!-- 含み損益の詳細 -->
                     <div class="pl-detail-section" id="plDetailSection">
-                        <div class="pl-detail-row hidden" id="sellPLRow">
-                            <span>売り含み</span>
-                            <span id="sellUnrealizedPL" class="pl-val">0</span>
-                        </div>
                         <div class="pl-detail-row hidden" id="buyPLRow">
                             <span>買い含み</span>
                             <span id="buyUnrealizedPL" class="pl-val">0</span>
+                        </div>
+                        <div class="pl-detail-row hidden" id="sellPLRow">
+                            <span>売り含み</span>
+                            <span id="sellUnrealizedPL" class="pl-val">0</span>
                         </div>
                     </div>
 
