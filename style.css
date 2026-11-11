@@ -1577,3 +1577,15 @@ body.dark-theme .color-btn.active {
 }
 .tool-palette .color-btn { aspect-ratio: auto; }
 .paint-group .clear-paint-btn { padding: 0; }
+
+/* 下の隙間を詰め、チャート画像エリアを最大化 */
+.panel-scroll-area { padding-bottom: 0.4rem !important; }
+.top-nav-row { margin: 0 !important; padding: 0 !important; border: none !important; }
+.image-nav-area:not(.visible) { display: none; }
+.image-nav-area.visible { margin-bottom: 0.3rem; }
+@media (max-width: 768px) and (orientation: portrait) {
+    .canvas-container { flex: 1 1 0 !important; min-height: 260px; max-height: none !important; }
+    .control-panel { flex: 0 0 auto !important; overflow: visible !important; }
+    .panel-grid { height: auto !important; }
+    .panel-scroll-area { flex: 0 0 auto !important; overflow-y: visible !important; }
+}
