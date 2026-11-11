@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Chart Learning App - Logic
  * ローソク足1本ずつめくり + 価格キャリブレーション + リアルタイム損益計算
  */
@@ -273,8 +273,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    if (speedDecBtn) speedDecBtn.addEventListener('click', () => adjustSpeed(-0.1));
-    if (speedIncBtn) speedIncBtn.addEventListener('click', () => adjustSpeed(0.1));
+    if (speedDecBtn) speedDecBtn.addEventListener('click', () => adjustSpeed(0.1));
+    if (speedIncBtn) speedIncBtn.addEventListener('click', () => adjustSpeed(-0.1));
     if (speedValueInput) {
         speedValueInput.addEventListener('change', (e) => {
             let val = parseFloat(e.target.value);
@@ -1064,34 +1064,11 @@ document.addEventListener('DOMContentLoaded', () => {
         drawCanvas();
     }
 
-    // 現在の画像をリセット（マスク位置・ズーム・スクロールは維持、P&L/履歴をリセット）
+    // めくったカウントのみ0にリセット（マスク・ペイント・P&L・履歴は維持）
     function resetCurrentImage() {
         if (!appState.image) return;
-        cancelSlideAnimation();
-        stopAutoPlay();
-        stopAutoRewind();
-
-        // マスク位置・ズーム・スクロール位置を保存
-        const savedVisibleWidth = appState.visibleWidth;
-        const savedScale = appState.scale;
-        const container = canvas.parentElement;
-        const savedScrollLeft = container ? container.scrollLeft : 0;
-        const savedScrollTop = container ? container.scrollTop : 0;
-
-        initGame(appState.image);
-
-        // 位置・ズームを復元し、マスク位置に応じたステップ数を整合させる
-        appState.visibleWidth = savedVisibleWidth;
-        appState.scale = savedScale;
-        if (zoomLevelInput) zoomLevelInput.value = Math.round(savedScale * 100);
-        syncMaskState();
-
-        // スクロール位置を復元（drawCanvas後に設定）
-        drawCanvas();
-        if (container) {
-            container.scrollLeft = savedScrollLeft;
-            container.scrollTop = savedScrollTop;
-        }
+        appState.currentStep = 0;
+        if (currentStepEl) currentStepEl.textContent = 0;
     }
 
     // ==========================================

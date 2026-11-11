@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     /* Dark Purple Theme */
     --bg-color: #1a1025;
     --panel-bg: #241535;
@@ -1627,3 +1627,23 @@ body.dark-theme .color-btn.active {
 }
 .tool-palette .clear-icon-btn { min-width: 0; padding: 0; font-size: 0.7rem; line-height: 1; display: flex; align-items: center; justify-content: center; background: var(--border-color); background-image: none; border: 1px solid #3a3a45; box-shadow: none; }
 .paint-group { margin-bottom: 0.2rem; }
+
+/* 配色ボタンの縦幅を描画ツールボタンと同じ(28px)に。横幅は従来通りflexのまま */
+.tool-palette .color-btn, .tool-palette .clear-icon-btn {
+    height: 28px !important; min-height: 28px !important; max-height: 28px !important;
+    aspect-ratio: auto !important; border-radius: 14px !important; box-sizing: border-box;
+}
+
+/* 上段: フォルダ/画像を半幅で左詰め、空いた幅に全リピ/画リピ。前/次は従来幅 (8分割) */
+.top-controls > .actions.actions-grid-4:not(.play-row) { grid-template-columns: repeat(8, 1fr); }
+#prevDayBtn, #nextDayBtn { grid-column: span 2; }
+.top-controls .loop-btn { font-size: 0.5rem; min-width: 0; padding: 0; letter-spacing: -0.5px; overflow: hidden; }
+.play-row > .setting-group { width: 100% !important; flex: none; min-width: 0; }
+.settings-row:empty, .settings-row:not(:has(*)) { display: none !important; }
+
+/* 送り幅/ズーム: 速度と同じ大きさ (settings-row外に移動したため play-row 用に再指定) */
+.play-row .setting-group { height: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 0; background: var(--input-bg); border-radius: 4px; box-sizing: border-box; }
+.play-row .setting-group label { font-size: 0.5rem; margin: 0; padding: 0; line-height: 1; color: var(--text-muted); white-space: nowrap; }
+.play-row .setting-group .step-control { display: flex; align-items: center; justify-content: center; width: 100%; gap: 1px; }
+.play-row .setting-group .step-control .small-btn { width: 12px !important; min-width: 0 !important; height: 14px !important; min-height: 12px !important; max-height: 14px !important; padding: 0 !important; font-size: 0.7rem !important; }
+.play-row .setting-group .step-control input { width: 20px !important; min-width: 0; height: 14px !important; min-height: 0 !important; max-height: 14px !important; padding: 0 !important; font-size: 0.65rem !important; text-align: center; background: transparent; border: none; }

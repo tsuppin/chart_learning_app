@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ja">
 
 <head>
@@ -43,6 +43,8 @@
                         <svg class="btn-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z"/></svg><span>画像</span>
                         <input type="file" id="imageUpload" accept="image/*" multiple class="file-input">
                     </label>
+                    <button id="loopFolderBtn" class="secondary loop-btn" disabled title="読み込んだ全画像を繰り返し自動めくり">全リピ</button>
+                    <button id="loopImageBtn" class="secondary loop-btn" disabled title="現在の画像を繰り返し自動めくり">画リピ</button>
                     <button id="prevDayBtn" disabled>前</button>
                     <button id="nextDayBtn" disabled>次</button>
                 </div>
@@ -69,7 +71,7 @@
                 <div class="actions actions-grid-4 play-row">
                     <div class="step-display">
                         <span id="currentStep" class="step-number">0</span>
-                        <button id="resetCurrentBtn" class="small-btn" title="この画像をリセット" disabled>↺</button>
+                        <button id="resetCurrentBtn" class="small-btn" title="カウントをリセット" disabled>↺</button>
                     </div>
 
                     <div class="autoplay-speed-ctrl inline-speed">
@@ -80,8 +82,23 @@
                             <button id="speedIncBtn" class="small-btn">+</button>
                         </div>
                     </div>
-                    <button id="loopFolderBtn" class="secondary loop-btn" disabled title="読み込んだ全画像を繰り返し自動めくり">全リピ</button>
-                    <button id="loopImageBtn" class="secondary loop-btn" disabled title="現在の画像を繰り返し自動めくり">画リピ</button>
+                        <div class="setting-group">
+                            <label for="stepSizeInput">送り幅</label>
+                            <div class="step-control">
+                                <button id="stepDec" class="small-btn">−</button>
+                                <input type="number" id="stepSizeInput" value="23" min="1" max="200">
+                                <button id="stepInc" class="small-btn">+</button>
+                            </div>
+                        </div>
+
+                        <div class="setting-group">
+                            <label for="zoomLevelInput">ズーム</label>
+                            <div class="step-control">
+                                <button id="zoomOut" class="small-btn">−</button>
+                                <input type="number" id="zoomLevelInput" value="100" min="20" max="500" step="10">
+                                <button id="zoomIn" class="small-btn">+</button>
+                            </div>
+                        </div>
                 </div>
                 <div class="input-group paint-group">
                     <div class="color-palette tool-palette" id="colorPalette">
@@ -104,25 +121,6 @@
                     </div>
                 </div>
 
-                    <div class="settings-row">
-                        <div class="setting-group">
-                            <label for="stepSizeInput">送り幅</label>
-                            <div class="step-control">
-                                <button id="stepDec" class="small-btn">−</button>
-                                <input type="number" id="stepSizeInput" value="23" min="1" max="200">
-                                <button id="stepInc" class="small-btn">+</button>
-                            </div>
-                        </div>
-
-                        <div class="setting-group">
-                            <label for="zoomLevelInput">ズーム</label>
-                            <div class="step-control">
-                                <button id="zoomOut" class="small-btn">−</button>
-                                <input type="number" id="zoomLevelInput" value="100" min="20" max="500" step="10">
-                                <button id="zoomIn" class="small-btn">+</button>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- 削除済み機能 (script.js が要素を参照するため非表示で保持) -->
