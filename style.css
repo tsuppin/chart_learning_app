@@ -10,6 +10,7 @@
     --accent-red: #ef4444;
     --accent-blue: #60a5fa;
     --accent-purple: #c084fc;
+    --secondary-color: #3d2a55;
     --border-color: #3d2a55;
     --input-bg: #2a1a3e;
     --input-text: #f0ecff;
@@ -23,6 +24,7 @@ body.dark-theme {
     --panel-bg: #1e293b;
     --text-color: #e2e8f0;
     --text-muted: #94a3b8;
+    --secondary-color: #334155;
     --border-color: #334155;
     --input-bg: #1e293b;
     --input-text: #e2e8f0;
@@ -67,7 +69,7 @@ body {
     padding: 0;
     width: 28px;
     height: 19px;
-    font-size: 0.5rem;
+    font-size: 0.65rem;
     background: var(--border-color);
     color: var(--text-color);
     border: none;
@@ -175,7 +177,7 @@ h1 {
 .actions.actions-grid-4 button,
 .actions.actions-grid-4 .upload-btn {
     width: 100%;
-    font-size: 0.4rem;
+    font-size: 0.68rem;
     padding: 0;
     display: flex;
     justify-content: center;
@@ -187,7 +189,7 @@ h1 {
 
 /* 「フォルダ」ボタンのみ文字を少し小さく */
 .actions.actions-grid-4 .upload-btn-folder {
-    font-size: 0.33rem;
+    font-size: 0.6rem;
 }
 
 .mask-ctrl-grid {
@@ -234,7 +236,6 @@ main {
     position: absolute;
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
     transform: translate(-50%, -50%);
     pointer-events: auto;
     cursor: pointer;
@@ -843,11 +844,11 @@ body.dark-theme .entry-price-row {
     font-size: 0.78rem;
 }
 
-#sellEntryRow .entry-value {
+#buyEntryRow .entry-value {
     color: var(--accent-red);
 }
 
-#buyEntryRow .entry-value {
+#sellEntryRow .entry-value {
     color: var(--accent-blue);
 }
 
@@ -1108,11 +1109,11 @@ button.loop-btn.loop-active {
     font-variant-numeric: tabular-nums;
 }
 
-.pos-info.sell-pos {
+.pos-info.buy-pos {
     color: var(--accent-red);
 }
 
-.pos-info.buy-pos {
+.pos-info.sell-pos {
     color: var(--accent-blue);
 }
 

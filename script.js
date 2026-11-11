@@ -12,14 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const prevBtn = document.getElementById('prevDayBtn');
     const autoPlayBtn = document.getElementById('autoPlayBtn');
     const autoRewindBtn = document.getElementById('autoRewindBtn');
-    const finishBtn = document.getElementById('finishBtn');
-    const resetBtn = document.getElementById('resetBtn');
     const messageEl = document.getElementById('overlay-message');
 
-    // Make overlay message clickable
-    if (messageEl && fileInput) {
+    // Make overlay message clickable (use imageInput so mobile devices work too)
+    if (messageEl && (imageInput || fileInput)) {
         messageEl.addEventListener('click', () => {
-            fileInput.click();
+            (imageInput || fileInput).click();
         });
     }
 
@@ -137,6 +135,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Loop mode: null | 'folder' | 'image'
         loopMode: null,
+
+        // Cached offscreen source canvas & rAF flag
+        sourceCanvas: null,
+        sourceCtx: null,
+        drawPending: false,
     };
 
     // ==========================================
@@ -160,8 +163,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (prevBtn) prevBtn.addEventListener('click', handlePrevDay);
     if (autoPlayBtn) autoPlayBtn.addEventListener('click', toggleAutoPlay);
     if (autoRewindBtn) autoRewindBtn.addEventListener('click', toggleAutoRewind);
-    if (finishBtn) finishBtn.addEventListener('click', handleFinish);
-    if (resetBtn) resetBtn.addEventListener('click', resetApp);
     if (resetCurrentBtn) resetCurrentBtn.addEventListener('click', resetCurrentImage);
     if (calibrateBtn) calibrateBtn.addEventListener('click', startCalibration);
     if (maskResetBtn) maskResetBtn.addEventListener('click', handleMaskReset);
@@ -402,6 +403,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     //  MOUSE TRACKING
     // ==========================================
+    function requestDrawCanvas() {
+        if (appState.drawPending) return;
+        appState.drawPending = true;
+        requestAnimationFrame(() => {
+            appState.drawPending = false;
+            drawCanvas();
+        });
+    }
+
+    function syncMaskState() {
+        const minVisible = appState.stepSize * 2;
+        const rawSteps = (appState.visibleWidth - minVisible) / appState.stepSize;
+        appState.currentStep = Math.max(0, Math.floor(rawSteps));
+        if (currentStepEl) currentStepEl.textContent = appState.currentStep;
+
+        if (prevBtn) prevBtn.disabled = appState.visibleWidth <= minVisible;
+        if (nextBtn) nextBtn.disabled = appState.visibleWidth >= appState.totalWidth;
+
+        if (appState.visibleWidth >= appState.totalWidth) {
+            appState.visibleWidth = appState.totalWidth;
+            finishGame();
+        } else {
+            appState.isFinished = false;
+            if (autoPlayBtn) autoPlayBtn.disabled = false;
+        }
+    }
+
     function handleCanvasMouseMove(e) {
         if (!appState.image) return;
         const coords = screenToImageCoords(e);
@@ -417,7 +445,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             appState.visibleWidth = newWidth;
             appState.wasDraggingMask = true; // Mark as dragged
-            drawCanvas();
+            syncMaskState();
+            requestDrawCanvas();
             return; // Skip other hover checks (crosshair etc.) during drag
         }
 
@@ -429,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (appState.isPainting && appState.currentStroke) {
             if (e.cancelable) e.preventDefault();
             appState.currentStroke.points.push({ x: coords.x, y: coords.y });
-            drawCanvas();
+            requestDrawCanvas();
             return; // skip other hover logic while drawing
         }
 
@@ -443,7 +472,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (appState.priceReadMode || appState.isPriceCalibrating || appState.isCalibrating) {
             appState.showCrosshair = true;
-            drawCanvas();
+            requestDrawCanvas();
         }
     }
 
@@ -477,7 +506,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleCanvasMouseUp(e) {
         if (appState.isDraggingMask) {
             appState.isDraggingMask = false;
+            syncMaskState();
             updateCursorStyle(); // Revert cursor
+            drawCanvas();
         }
         if (appState.isPainting) {
             appState.isPainting = false;
@@ -486,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 appState.currentStroke = null;
             }
             updateCursorStyle();
+            drawCanvas();
         }
     }
 
@@ -632,7 +664,7 @@ document.addEventListener('DOMContentLoaded', () => {
             priceCalibrateBtn.classList.add('calibrating');
         }
         if (priceCalibrateStatus) {
-            priceCalibrateStatus.innerHTML = '👆 <strong>1つ目</strong>の基準価格の位置をチャート上でクリック';
+            priceCalibrateStatus.textContent = '👆 1つ目の基準価格の位置をチャート上でクリック';
             priceCalibrateStatus.className = 'calibrate-status active';
         }
         drawCanvas();
@@ -665,7 +697,7 @@ document.addEventListener('DOMContentLoaded', () => {
             appState.priceCalibrationStep = 2;
 
             if (priceCalibrateStatus) {
-                priceCalibrateStatus.innerHTML = `✅ 1点目: ¥${price.toLocaleString()} | 👆 <strong>2つ目</strong>の基準価格をクリック`;
+                priceCalibrateStatus.textContent = `✅ 1点目: ¥${price.toLocaleString()} | 👆 2つ目の基準価格をクリック`;
                 priceCalibrateStatus.className = 'calibrate-status step1';
             }
             drawCanvas();
@@ -699,7 +731,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (priceCalibrateStatus) {
                 const p1 = appState.priceCalPoints[0];
                 const p2 = appState.priceCalPoints[1];
-                priceCalibrateStatus.innerHTML = `✅ 設定完了！ ¥${p1.price.toLocaleString()} ↔ ¥${p2.price.toLocaleString()}`;
+                priceCalibrateStatus.textContent = `✅ 設定完了！ ¥${p1.price.toLocaleString()} ↔ ¥${p2.price.toLocaleString()}`;
                 priceCalibrateStatus.className = 'calibrate-status success';
             }
             if (priceReadModeToggle) {
@@ -740,11 +772,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgData = ocrCtx.getImageData(0, 0, ocrCanvas.width, ocrCanvas.height);
             const data = imgData.data;
 
-            // Binarization for better OCR (White text on Dark BG -> Black text on White BG)
+            // Binarization for better OCR (auto-detect light vs dark background)
+            let totalLum = 0;
+            const pixelCount = data.length / 4;
+            for (let i = 0; i < data.length; i += 4) {
+                totalLum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+            }
+            const isLightBg = (totalLum / Math.max(1, pixelCount)) > 128;
+
             for (let i = 0; i < data.length; i += 4) {
                 const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                // Thresholding: Bright pixels become black (text), Dark pixels become white (bg)
-                const val = avg > 90 ? 0 : 255;
+                // Normalize to Black text (0) on White background (255)
+                const val = isLightBg ? (avg < 150 ? 0 : 255) : (avg > 90 ? 0 : 255);
                 data[i] = val;     // R
                 data[i + 1] = val; // G
                 data[i + 2] = val; // B
@@ -1018,8 +1057,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     //  IMAGE UPLOAD & INIT
     // ==========================================
+    function cancelSlideAnimation() {
+        if (appState.animationFrameId) {
+            cancelAnimationFrame(appState.animationFrameId);
+            appState.animationFrameId = null;
+        }
+        appState.animating = false;
+    }
+
     function handleFolderUpload(e) {
         const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+        e.target.value = '';
         if (files.length === 0) return;
 
         // Sort by path or filename logically
@@ -1038,6 +1086,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 画像ファイルを個別選択した場合（複数可）
     function handleImageFileSelect(e) {
         const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+        e.target.value = '';
         if (files.length === 0) return;
 
         files.sort((a, b) => {
@@ -1068,6 +1117,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function navigateImage(delta) {
         const newIndex = appState.imageFileIndex + delta;
         if (newIndex < 0 || newIndex >= appState.imageFiles.length) return;
+        cancelSlideAnimation();
+        stopAutoPlay();
+        stopAutoRewind();
         appState.imageFileIndex = newIndex;
         updateImageNavUI();
         loadImageAt(newIndex);
@@ -1082,23 +1134,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (nextImageBtn) nextImageBtn.disabled = idx >= total - 1;
     }
 
-    // 後方互換のためにも残す（内部呼び出し等でそのまま利用される場合）
-    function handleImageUpload(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function (event) {
-            const img = new Image();
-            img.onload = function () { initGame(img); };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
     function initGame(img, keepAutoPlay = false) {
+        cancelSlideAnimation();
         appState.image = img;
         appState.totalWidth = img.width;
         appState.height = img.height;
+        appState.sourceCanvas = null;
+        appState.sourceCtx = null;
 
         appState.stepSize = (stepSizeInput && parseInt(stepSizeInput.value)) || 23;
         const initialVisible = appState.stepSize * 2;
@@ -1154,7 +1196,6 @@ document.addEventListener('DOMContentLoaded', () => {
             autoRewindBtn.disabled = false;
             stopAutoRewind();
         }
-        if (finishBtn) finishBtn.disabled = true;
         if (messageEl) messageEl.style.display = 'none';
         canvas.parentElement.classList.add('has-image');
 
@@ -1169,7 +1210,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (priceCalibrateBtn) {
             priceCalibrateBtn.textContent = '💰 価格軸を設定';
-            priceCalibrateBtn.classList.remove('calibrating');
             priceCalibrateBtn.classList.remove('calibrating');
             priceCalibrateBtn.disabled = false;
         }
@@ -1203,10 +1243,12 @@ document.addEventListener('DOMContentLoaded', () => {
         drawCanvas();
     }
 
-    // 現在の画像をリセット（マスク位置・ズーム・スクロールは維持、ステップ/P&L/履歴のみリセット）
+    // 現在の画像をリセット（マスク位置・ズーム・スクロールは維持、P&L/履歴をリセット）
     function resetCurrentImage() {
         if (!appState.image) return;
+        cancelSlideAnimation();
         stopAutoPlay();
+        stopAutoRewind();
 
         // マスク位置・ズーム・スクロール位置を保存
         const savedVisibleWidth = appState.visibleWidth;
@@ -1217,23 +1259,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         initGame(appState.image);
 
-        // 全て復元、ステップは0に戻す
+        // 位置・ズームを復元し、マスク位置に応じたステップ数を整合させる
         appState.visibleWidth = savedVisibleWidth;
         appState.scale = savedScale;
         if (zoomLevelInput) zoomLevelInput.value = Math.round(savedScale * 100);
-        appState.currentStep = 0;
-        if (currentStepEl) currentStepEl.textContent = 0;
+        syncMaskState();
 
         // スクロール位置を復元（drawCanvas後に設定）
         drawCanvas();
         if (container) {
             container.scrollLeft = savedScrollLeft;
             container.scrollTop = savedScrollTop;
-        }
-
-        const minVisible = appState.stepSize * 2;
-        if (appState.visibleWidth > minVisible) {
-            if (prevBtn) prevBtn.disabled = false;
         }
     }
 
@@ -1242,22 +1278,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     function handleMaskReset() {
         if (!appState.image) return;
-        // アニメーションを即キャンセル
-        if (appState.animationFrameId) {
-            cancelAnimationFrame(appState.animationFrameId);
-            appState.animationFrameId = null;
-            appState.animating = false;
-        }
+        cancelSlideAnimation();
         stopAutoPlay();
         stopAutoRewind();
         // マスクを最小位置（初期位置）に戻す
         const minVisible = appState.stepSize * 2;
         appState.visibleWidth = minVisible;
         appState.currentStep = 0;
+        appState.isFinished = false;
         if (currentStepEl) currentStepEl.textContent = 0;
         if (prevBtn) prevBtn.disabled = true;
         if (nextBtn) nextBtn.disabled = false;
+        if (autoPlayBtn) autoPlayBtn.disabled = false;
         drawCanvas();
+        autoScrollToCurrentPosition(true);
     }
 
     function handleMaskReveal() {
@@ -1358,7 +1392,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * - 合計損益を表示
      */
     function updatePLDisplay() {
-        const currentPrice = parseInt(priceInput?.value) || 0;
+        const currentPrice = parseFloat(priceInput?.value) || 0;
         const currentSell = parseInt(sellInput?.value) || 0;
         const currentBuy = parseInt(buyInput?.value) || 0;
 
@@ -1563,7 +1597,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Price label on green line (when calibrated)
             if (appState.priceCalibrated) {
-                const currentPriceVal = parseInt(priceInput?.value) || 0;
+                const currentPriceVal = parseFloat(priceInput?.value) || 0;
                 if (currentPriceVal > 0) {
                     const priceLabel = `￥${currentPriceVal.toLocaleString()}`;
                     ctx.font = 'bold 13px "Helvetica Neue", Arial, sans-serif';
@@ -1805,7 +1839,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const currentSell = parseInt(sellInput.value) || 0;
         const currentBuy = parseInt(buyInput.value) || 0;
-        const currentPrice = parseInt(priceInput.value) || 0;
+        const currentPrice = parseFloat(priceInput.value) || 0;
 
         // Commit P&L changes
         if (currentPrice > 0) {
@@ -1815,6 +1849,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Record History
         const entry = {
             step: appState.currentStep + 1,
+            xPos: appState.visibleWidth,
             sell: currentSell,
             buy: currentBuy,
             price: currentPrice,
@@ -1846,22 +1881,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const minVisible = appState.stepSize * 2;
         if (appState.visibleWidth <= minVisible) return;
 
+        // 進行中のスライドアニメーションがあれば即座にキャンセル
+        cancelSlideAnimation();
+
         // 自動めくりが動いていたら停止
         stopAutoPlay();
-
-        // もし自動もどりが動いていたら停止（直接呼ばれる場合のため）
-        // stopAutoRewind();
 
         // めくり完了状態から戻る場合は完了フラグを解除
         if (appState.isFinished) {
             appState.isFinished = false;
             if (nextBtn) nextBtn.disabled = false;
             if (autoPlayBtn) autoPlayBtn.disabled = false;
-            if (finishBtn) finishBtn.disabled = false;
         }
 
         // Pop last history entry and restore state
-        const removedEntry = appState.history.pop();
+        appState.history.pop();
         if (historyList && historyList.firstChild) {
             historyList.removeChild(historyList.firstChild);
         }
@@ -1966,84 +2000,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        if (finishBtn) finishBtn.disabled = true;
         drawCanvas();
-    }
-
-    function handleFinish() {
-        stopAutoPlay();
-        stopAutoRewind();
-        finishGame();
-    }
-
-    function resetApp() {
-        stopAutoPlay();
-        stopAutoRewind();
-        appState.image = null;
-        appState.isCalibrating = false;
-        appState.calibrationClicks = [];
-        appState.candleWidth = null;
-        appState.isPriceCalibrating = false;
-        appState.priceCalibrationStep = 0;
-        appState.priceCalPoints = [];
-        appState.priceCalibrated = false;
-        appState.priceReadMode = false;
-        appState.avgSellPrice = 0;
-        appState.avgBuyPrice = 0;
-        appState.accRealizedPL = 0;
-        appState.prevSellPos = 0;
-        appState.prevBuyPos = 0;
-        appState.paintColor = null;
-        appState.strokes = [];
-        appState.currentStroke = null;
-        appState.isPainting = false;
-
-        const colorBtns = document.querySelectorAll('.color-btn');
-        if (colorBtns.length > 0) {
-            colorBtns.forEach(b => b.classList.remove('active'));
-            const defaultOff = Array.from(colorBtns).find(b => b.dataset.color === "");
-            if (defaultOff) defaultOff.classList.add('active');
-        }
-
-        canvas.style.cursor = 'default';
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (messageEl) messageEl.style.display = 'block';
-        canvas.parentElement.classList.remove('has-image');
-        if (nextBtn) nextBtn.disabled = false;
-        if (prevBtn) prevBtn.disabled = true;
-        if (autoPlayBtn) autoPlayBtn.disabled = false;
-        if (autoRewindBtn) autoRewindBtn.disabled = false;
-        if (finishBtn) finishBtn.disabled = true;
-        if (sellInput) sellInput.value = 0;
-        if (buyInput) buyInput.value = 0;
-        if (priceInput) priceInput.value = "";
-        if (historyList) historyList.innerHTML = "";
-        if (currentStepEl) currentStepEl.textContent = "0";
-        if (calibrateBtn) {
-            calibrateBtn.textContent = '📏 ローソク足幅を計測';
-            calibrateBtn.classList.remove('calibrating');
-            calibrateBtn.disabled = true;
-        }
-        if (calibrateStatus) { calibrateStatus.textContent = ''; calibrateStatus.className = 'calibrate-status'; }
-        if (priceCalibrateBtn) {
-            priceCalibrateBtn.textContent = '💰 価格軸を設定';
-            priceCalibrateBtn.classList.remove('calibrating');
-            priceCalibrateBtn.disabled = true;
-        }
-        if (autoCalibrateBtn) {
-            autoCalibrateBtn.disabled = true;
-        }
-        if (priceCalibrateStatus) { priceCalibrateStatus.textContent = ''; priceCalibrateStatus.className = 'calibrate-status'; }
-        if (priceReadModeToggle) { priceReadModeToggle.checked = false; priceReadModeToggle.disabled = true; }
-
-        // Reset P&L display
-        if (sellEntryRow) sellEntryRow.style.display = 'none';
-        if (buyEntryRow) buyEntryRow.style.display = 'none';
-        if (sellPLRow) sellPLRow.style.display = 'none';
-        if (buyPLRow) buyPLRow.style.display = 'none';
-        if (unrealizedPLEl) { unrealizedPLEl.textContent = '0'; unrealizedPLEl.className = 'pl-val-big pl-zero'; }
-        if (realizedPLEl) { realizedPLEl.textContent = '0'; realizedPLEl.className = 'pl-val-big pl-zero'; }
-        if (totalPLEl) { totalPLEl.textContent = '0'; totalPLEl.className = 'pl-val-total pl-zero'; }
     }
 
     // ==========================================
@@ -2104,14 +2061,25 @@ document.addEventListener('DOMContentLoaded', () => {
             appState.autoPlayInterval = null;
         }
 
-        // === 全画像(リスト)繰り返しモード ===
-        const isLoopMode = appState.loopMode === 'folder' || appState.loopMode === 'image';
+        // === 画リピ（現在の画像を繰り返し）モード ===
+        if (appState.loopMode === 'image' && appState.image) {
+            initGame(appState.image, continueAutoPlay);
+            appState.visibleWidth = appState.stepSize * 2;
+            if (continueAutoPlay) {
+                setTimeout(() => startAutoPlay(), 300);
+            } else {
+                stopAutoPlay();
+            }
+            return;
+        }
+
+        // === 全リピ（フォルダ内全画像を順番に繰り返し）または通常進行 ===
         const nextIndex = appState.imageFileIndex + 1 < appState.imageFiles.length
             ? appState.imageFileIndex + 1
-            : (isLoopMode ? 0 : -1);
+            : (appState.loopMode === 'folder' ? 0 : -1);
 
         if (nextIndex >= 0 && appState.imageFiles.length > 0) {
-            if (nextIndex === appState.imageFileIndex) {
+            if (nextIndex === appState.imageFileIndex && appState.image) {
                 // 同じ画像の場合は再読み込みせずに初期化 (1枚しかない場合など)
                 initGame(appState.image, continueAutoPlay);
                 appState.visibleWidth = appState.stepSize * 2;
@@ -2200,6 +2168,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // ボタン表示を更新
         if (loopFolderBtn) loopFolderBtn.classList.toggle('loop-active', appState.loopMode === 'folder');
         if (loopImageBtn) loopImageBtn.classList.toggle('loop-active', appState.loopMode === 'image');
+
+        // 完了状態中にループモードを切り替えた場合、「めくり」ボタンの有効状態を同期
+        if (appState.image && appState.isFinished && autoPlayBtn) {
+            const hasNext = appState.imageFileIndex + 1 < appState.imageFiles.length;
+            const isLoop = appState.loopMode === 'folder' || appState.loopMode === 'image';
+            autoPlayBtn.disabled = !(hasNext || isLoop);
+        }
     }
 
     // ==========================================
@@ -2209,14 +2184,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!historyList) return;
         const li = document.createElement('li');
         const priceStr = entry.price ? `¥${entry.price.toLocaleString()}` : '';
-        li.innerHTML = `
-            <span class="step-info">Day ${entry.step}</span>
-            <span class="price-info">${priceStr}</span>
-            <span class="pos-info sell-pos">${entry.sell}</span>
-            <span class="pos-sep">-</span>
-            <span class="pos-info buy-pos">${entry.buy}</span>
-            <span class="tech-info">${entry.technique ? `[${entry.technique}]` : ''}</span>
-        `;
+
+        const stepSpan = document.createElement('span');
+        stepSpan.className = 'step-info';
+        stepSpan.textContent = `Day ${entry.step}`;
+
+        const priceSpan = document.createElement('span');
+        priceSpan.className = 'price-info';
+        priceSpan.textContent = priceStr;
+
+        const sellSpan = document.createElement('span');
+        sellSpan.className = 'pos-info sell-pos';
+        sellSpan.textContent = String(entry.sell);
+
+        const sepSpan = document.createElement('span');
+        sepSpan.className = 'pos-sep';
+        sepSpan.textContent = '-';
+
+        const buySpan = document.createElement('span');
+        buySpan.className = 'pos-info buy-pos';
+        buySpan.textContent = String(entry.buy);
+
+        const techSpan = document.createElement('span');
+        techSpan.className = 'tech-info';
+        techSpan.textContent = entry.technique ? `[${entry.technique}]` : '';
+
+        li.append(stepSpan, priceSpan, sellSpan, sepSpan, buySpan, techSpan);
         historyList.insertBefore(li, historyList.firstChild);
     }
 
@@ -2230,10 +2223,12 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.textAlign = "center";
         ctx.textBaseline = "bottom";
 
-        const initialVisible = appState.totalWidth * 0.2;
+        const initialVisible = appState.stepSize * 2;
 
         appState.history.forEach((entry, index) => {
-            const xPos = initialVisible + (index * appState.stepSize);
+            const xPos = typeof entry.xPos === 'number'
+                ? entry.xPos
+                : (initialVisible + (index * appState.stepSize));
 
             const isLightTheme = document.body.classList.contains('light-theme');
             ctx.strokeStyle = isLightTheme ? "rgba(0, 0, 0, 0.3)" : "rgba(255, 255, 255, 0.3)";
@@ -2251,17 +2246,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 let boxColor = "rgba(0, 0, 0, 0.7)";
                 if (feedback && feedback.isConsistent === false) {
-                    boxColor = "rgba(200, 50, 50, 0.8)";
+                    boxColor = "rgba(200, 50, 50, 0.85)";
                 } else if (feedback && feedback.isConsistent === true) {
-                    boxColor = "rgba(50, 150, 50, 0.8)";
+                    boxColor = "rgba(50, 150, 50, 0.85)";
                 }
 
                 const text = `${entry.sell}-${entry.buy}`;
                 const tech = entry.technique || "";
-                const width = Math.max(ctx.measureText(text).width, ctx.measureText(tech).width) + 20;
+                const msg = (feedback && feedback.message) ? feedback.message : "";
+                const width = Math.max(
+                    ctx.measureText(text).width,
+                    ctx.measureText(tech).width,
+                    ctx.measureText(msg).width
+                ) + 20;
 
+                const boxHeight = msg ? 75 : (tech ? 55 : 35);
                 ctx.fillStyle = boxColor;
-                ctx.fillRect(xPos - width / 2, yPos - 35, width, tech ? 55 : 35);
+                ctx.fillRect(xPos - width / 2, yPos - 35, width, boxHeight);
 
                 ctx.fillStyle = "#fff";
                 ctx.fillText(text, xPos, yPos);
@@ -2269,6 +2270,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (tech) {
                     ctx.fillStyle = "#ffdd55";
                     ctx.fillText(tech, xPos, yPos + 20);
+                }
+                if (msg) {
+                    ctx.font = "bold 11px Arial";
+                    ctx.fillStyle = "#fecaca";
+                    ctx.fillText(msg, xPos, yPos + 38);
+                    ctx.font = "bold 14px Arial";
                 }
             }
         });
@@ -2307,121 +2314,100 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     //  AUTO PRICE DETECTION
     // ==========================================
-    function isValidHighLowLabel(ctx, box) {
-        // 1. Check if text is white-ish (simple check)
-        const cx = Math.floor((box.x0 + box.x1) / 2);
-        const cy = Math.floor((box.y0 + box.y1) / 2);
-        // We trust Tesseract found text.
-
-        // 2. Check for "White Bar" or "Line" connected to the box.
-        // The user says "White bar attached to the top/bottom".
-        // This implies there are white pixels adjacent to the text box.
-        // We will scan a margin around the box.
-
-        const margin = 10;
-        const width = ctx.canvas.width;
-        const height = ctx.canvas.height;
-
-        // Define search area: slightly larger than box
-        const x0 = Math.max(0, Math.floor(box.x0 - margin));
-        const y0 = Math.max(0, Math.floor(box.y0 - margin));
-        const x1 = Math.min(width, Math.ceil(box.x1 + margin));
-        const y1 = Math.min(height, Math.ceil(box.y1 + margin));
-
-        const w = x1 - x0;
-        const h = y1 - y0;
-        if (w <= 0 || h <= 0) return false;
-
-        const imgData = ctx.getImageData(x0, y0, w, h).data;
-        const thresh = 100; // Lowered from 200 for better sensitivity
-
-        // Iterate over the margin area (excluding the box itself approx)
-        // Actually, just count total white pixels in this expanded region vs inside the box?
-        // No, simplest is to check for *linear structures*.
-        // But checking for "any sufficient amount of white stuff near the box" is likely good enough
-        // to distinguish from random noise or axis labels (which are usually isolated or on a grid line).
-        // Grid lines are thin/gray often. User says "White Bar".
-
-        // Let's count white pixels that are *outside* the original box but inside the margin.
-        let whitePixelCount = 0;
-
-        // Original box in local coords
-        const bx0 = box.x0 - x0;
-        const by0 = box.y0 - y0;
-        const bx1 = box.x1 - x0;
-        const by1 = box.y1 - y0;
-
-        for (let y = 0; y < h; y++) {
-            for (let x = 0; x < w; x++) {
-                // Check if (x,y) is inside original box
-                if (x >= bx0 && x <= bx1 && y >= by0 && y <= by1) continue;
-
-                const idx = (y * w + x) * 4;
-                const r = imgData[idx];
-                const g = imgData[idx + 1];
-                const b = imgData[idx + 2];
-
-                if (r > thresh && g > thresh && b > thresh) {
-                    whitePixelCount++;
-                }
-            }
+    function getSourceCtx() {
+        if (!appState.image) return null;
+        if (!appState.sourceCanvas || appState.sourceCanvas.width !== appState.image.width || appState.sourceCanvas.height !== appState.image.height) {
+            appState.sourceCanvas = document.createElement('canvas');
+            appState.sourceCanvas.width = appState.image.width;
+            appState.sourceCanvas.height = appState.image.height;
+            appState.sourceCtx = appState.sourceCanvas.getContext('2d', { willReadFrequently: true });
+            appState.sourceCtx.drawImage(appState.image, 0, 0);
         }
-
-        // If we find enough white pixels outside, we assume it's attached to a bar/line.
-        // Lowered threshold to 5 pixels
-        return whitePixelCount > 5;
+        return appState.sourceCtx;
     }
+
     function detectAndSetCandlePrice() {
         if (!appState.image || !appState.priceCalibrated) return;
 
-        // Create a temporary canvas to read pixel data from the source image
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = appState.image.width;
-        tempCanvas.height = appState.image.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.drawImage(appState.image, 0, 0);
+        const sourceCtx = getSourceCtx();
+        if (!sourceCtx) return;
 
-        // Target X: Center of naturally revealed candle area
-        // The newly revealed area is [visibleWidth - stepSize, visibleWidth]
-        // We look at the center of this strip.
+        // Target X: Center of newly revealed candle area [visibleWidth - stepSize, visibleWidth]
         const targetX = Math.floor(appState.visibleWidth - (appState.stepSize / 2));
-        if (targetX < 0) return;
+        if (targetX < 0 || targetX >= appState.totalWidth) return;
 
-        // Get pixel column
-        const imgData = tempCtx.getImageData(targetX, 0, 1, appState.height);
-        const data = imgData.data;
+        const searchRadius = 15;
+        const stripX = Math.max(0, targetX - searchRadius);
+        const stripRight = Math.min(appState.totalWidth, targetX + searchRadius + 1);
+        const stripW = stripRight - stripX;
+        if (stripW <= 0 || appState.height <= 0) return;
 
-        // Scan for candle body
-        // Simple logic: Find non-background pixels.
-        // Assume background is light (R,G,B > 200)
-        // Group continuous non-bg pixels into segments.
+        // Read the entire vertical strip once
+        const stripData = sourceCtx.getImageData(stripX, 0, stripW, appState.height).data;
+        const centerRelX = targetX - stripX;
+
+        // Estimate background RGB along targetX using quantized color histogram (most frequent color bucket)
+        const buckets = new Map();
+        let dominantBucket = null;
+        let maxCount = 0;
+
+        for (let y = 0; y < appState.height; y++) {
+            const idx = (y * stripW + centerRelX) * 4;
+            const r = stripData[idx];
+            const g = stripData[idx + 1];
+            const b = stripData[idx + 2];
+            const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+            let entry = buckets.get(key);
+            if (!entry) {
+                entry = { count: 0, sumR: 0, sumG: 0, sumB: 0 };
+                buckets.set(key, entry);
+            }
+            entry.count++;
+            entry.sumR += r;
+            entry.sumG += g;
+            entry.sumB += b;
+            if (entry.count > maxCount) {
+                maxCount = entry.count;
+                dominantBucket = entry;
+            }
+        }
+
+        const bgR = dominantBucket ? dominantBucket.sumR / dominantBucket.count : 255;
+        const bgG = dominantBucket ? dominantBucket.sumG / dominantBucket.count : 255;
+        const bgB = dominantBucket ? dominantBucket.sumB / dominantBucket.count : 255;
+
+        function isBackgroundPixel(r, g, b) {
+            return Math.abs(r - bgR) < 35 && Math.abs(g - bgG) < 35 && Math.abs(b - bgB) < 35;
+        }
 
         let segments = [];
         let currentSegment = null;
 
-        for (let y = 0; y < appState.height; y++) {
-            const idx = y * 4;
-            const r = data[idx];
-            const g = data[idx + 1];
-            const b = data[idx + 2];
+        // Ignore top 5% and bottom 5% (headers/date axis)
+        const yMin = Math.floor(appState.height * 0.05);
+        const yMax = Math.ceil(appState.height * 0.95);
 
-            // Is background?
-            // Strict check: assume white-ish background
-            const isBg = (r > 200 && g > 200 && b > 200);
+        for (let y = yMin; y < yMax; y++) {
+            const idx = (y * stripW + centerRelX) * 4;
+            const r = stripData[idx];
+            const g = stripData[idx + 1];
+            const b = stripData[idx + 2];
 
-            if (!isBg) {
+            if (!isBackgroundPixel(r, g, b)) {
                 if (!currentSegment) {
-                    currentSegment = { startY: y, endY: y, r, g, b };
+                    currentSegment = { startY: y, endY: y, sumR: r, sumG: g, sumB: b, count: 1 };
                 } else {
                     currentSegment.endY = y;
+                    currentSegment.sumR += r;
+                    currentSegment.sumG += g;
+                    currentSegment.sumB += b;
+                    currentSegment.count++;
                 }
-            } else {
-                if (currentSegment) {
-                    if (currentSegment.endY - currentSegment.startY > 2) { // Ignore tiny noise
-                        segments.push(currentSegment);
-                    }
-                    currentSegment = null;
+            } else if (currentSegment) {
+                if (currentSegment.endY - currentSegment.startY > 2) {
+                    segments.push(currentSegment);
                 }
+                currentSegment = null;
             }
         }
         if (currentSegment && (currentSegment.endY - currentSegment.startY > 2)) {
@@ -2430,23 +2416,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (segments.length === 0) return;
 
-        // Heuristic: The longest segment is likely the candle (body+wicks).
-        // Or if multiple long segments (MA lines), we need to be careful.
-        // For now, let's pick the longest one that isn't excessively long (like a grid line across screen? unlikely in column scan).
-
         let candidate = null;
         let maxLen = 0;
 
         for (const seg of segments) {
             const len = seg.endY - seg.startY;
-            // Check color
-            // Red: R >> G, B
-            // Black/Blue: Low intensity or B > R
-            const isRed = (seg.r > seg.g + 30 && seg.r > seg.b + 30);
-
-            // Simple robust check: length matters most for candle body vs MA line (if MA is thin)
-            // MA lines are usually thin vertically (1-3px) unless they are steep.
-            // Candles are usually > 5-10px.
+            const avgR = seg.sumR / seg.count;
+            const avgG = seg.sumG / seg.count;
+            const avgB = seg.sumB / seg.count;
+            const isRed = (avgR > avgG + 25 && avgR > avgB + 25);
 
             if (len > maxLen) {
                 maxLen = len;
@@ -2456,23 +2434,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (candidate && maxLen > 5) {
-            // Determine Close Price Y
-            let closeY = candidate.startY; // Default to top
+            const bodyTopY = findBodyYInStrip(stripData, stripW, centerRelX, candidate.startY, candidate.endY, true, isBackgroundPixel);
+            const bodyBottomY = findBodyYInStrip(stripData, stripW, centerRelX, candidate.startY, candidate.endY, false, isBackgroundPixel);
 
-            // Refine Body Top/Bottom by checking width
-            // This is to skip the upper/lower wicks
-            const bodyTopY = findBodyY(tempCtx, targetX, candidate.startY, candidate.endY, true);
-            const bodyBottomY = findBodyY(tempCtx, targetX, candidate.startY, candidate.endY, false);
+            const closeY = candidate.isRed ? bodyTopY : bodyBottomY;
 
-            if (candidate.isRed) {
-                // Bullish (陽線): Close is Top of Body
-                closeY = bodyTopY;
-            } else {
-                // Bearish (陰線): Close is Bottom of Body
-                closeY = bodyBottomY;
-            }
-
-            // Convert Y to Price
             const price = yToPrice(closeY);
             if (price !== null) {
                 if (priceInput) {
@@ -2485,59 +2451,41 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function findBodyY(ctx, x, startY, endY, findTop) {
-        // Scan from startY downwards (or endY upwards) until we find a row with width >= threshold
-        // If the segment is entirely thin (Doji), just return the tip.
+    function findBodyYInStrip(stripData, stripW, centerRelX, startY, endY, findTop, isBackgroundPixel) {
         const threshold = 3;
         const len = endY - startY;
-        if (len < 5) return findTop ? startY : endY; // Too small to differentiate
-
-        // Limit scan to 33% from each end to avoid scanning the whole body if it's a Marubozu
-        // But since we want the EXACT edge of the body...
+        if (len < 5) return findTop ? startY : endY;
 
         if (findTop) {
-            // Scanning from Top (startY) downwards
             for (let y = startY; y <= endY; y++) {
-                if (measureWidth(ctx, x, y) >= threshold) return y;
+                if (measureWidthInStrip(stripData, stripW, centerRelX, y, isBackgroundPixel) >= threshold) return y;
             }
             return startY;
         } else {
-            // Scanning from Bottom (endY) upwards
             for (let y = endY; y >= startY; y--) {
-                if (measureWidth(ctx, x, y) >= threshold) return y;
+                if (measureWidthInStrip(stripData, stripW, centerRelX, y, isBackgroundPixel) >= threshold) return y;
             }
             return endY;
         }
     }
 
-    function measureWidth(ctx, centerX, y) {
-        // Measure continuous non-bg pixels left and right from centerX
-        const w = 15; // Search radius
-        // We need to be careful about not reading out of bounds, but getImageData handles clipping gracefully usually.
-        // Actually better to clamp.
-        const safeX = Math.max(0, centerX - w);
-        const safeW = (centerX + w) - safeX;
+    function measureWidthInStrip(stripData, stripW, centerRelX, y, isBackgroundPixel) {
+        const rowOffset = y * stripW;
 
-        const imgData = ctx.getImageData(safeX, y, safeW * 2, 1);
-        const d = imgData.data;
-        const centerRelX = centerX - safeX;
-
-        // Scan left from center
         let leftCount = 0;
         for (let i = centerRelX; i >= 0; i--) {
-            const idx = i * 4;
-            if (d[idx] > 220 && d[idx + 1] > 220 && d[idx + 2] > 220) break; // Bg detected
+            const idx = (rowOffset + i) * 4;
+            if (isBackgroundPixel(stripData[idx], stripData[idx + 1], stripData[idx + 2])) break;
             leftCount++;
         }
 
-        // Scan right from center
         let rightCount = 0;
-        for (let i = centerRelX + 1; i < d.length / 4; i++) {
-            const idx = i * 4;
-            if (d[idx] > 220 && d[idx + 1] > 220 && d[idx + 2] > 220) break; // Bg detected
+        for (let i = centerRelX + 1; i < stripW; i++) {
+            const idx = (rowOffset + i) * 4;
+            if (isBackgroundPixel(stripData[idx], stripData[idx + 1], stripData[idx + 2])) break;
             rightCount++;
         }
 
-        return leftCount + rightCount; // Total width
+        return leftCount + rightCount;
     }
 });
