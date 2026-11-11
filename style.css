@@ -1615,3 +1615,15 @@ body.dark-theme .color-btn.active {
     color: #f87171 !important;
     border-color: #ef4444 !important;
 }
+
+/* 黒追加・色アイコンを丸に・消去アイコンを黒の右隣へ */
+.bg-black { background-color: #000000; }
+.color-btn.border-btn-dark { border-color: #6b7280; }
+.tool-palette { align-items: center; }
+.tool-palette .color-btn, .tool-palette .clear-icon-btn {
+    flex: 1 1 0 !important; width: auto !important; height: auto !important;
+    min-height: 0 !important; max-height: none !important;
+    aspect-ratio: 1 / 1 !important; border-radius: 50% !important;
+}
+.tool-palette .clear-icon-btn { min-width: 0; padding: 0; font-size: 0.7rem; line-height: 1; display: flex; align-items: center; justify-content: center; background: var(--border-color); background-image: none; border: 1px solid #3a3a45; box-shadow: none; }
+.paint-group { margin-bottom: 0.2rem; }
