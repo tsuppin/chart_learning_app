@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ja">
 
 <head>
@@ -12,9 +12,6 @@
         href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"
-        integrity="sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F"
-        crossorigin="anonymous"></script>
 </head>
 
 <body>
@@ -36,26 +33,25 @@
             <aside class="control-panel">
                 <div class="panel-grid">
 
+                <div class="top-controls">
                 <div class="actions actions-grid-4">
                     <label for="chartUpload" class="upload-btn upload-btn-folder">
-                        フォルダ
+                        <svg class="btn-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg><span class="sr-only">フォルダ</span>
                         <input type="file" id="chartUpload" webkitdirectory class="file-input">
                     </label>
                     <label for="imageUpload" class="upload-btn upload-btn-secondary">
-                        画像
+                        <svg class="btn-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5l3.5-4.5z"/></svg><span>画像</span>
                         <input type="file" id="imageUpload" accept="image/*" multiple class="file-input">
                     </label>
                     <button id="prevDayBtn" disabled>前</button>
                     <button id="nextDayBtn" disabled>次</button>
                 </div>
-
-                <div class="actions actions-grid-4">
-                    <button id="autoRewindBtn" disabled>もどり</button>
-                    <button id="autoPlayBtn" disabled>めくり</button>
-                    <button id="loopFolderBtn" class="secondary loop-btn" disabled title="読み込んだ全画像を繰り返し自動めくり">
-                        全リピ</button>
-                    <button id="loopImageBtn" class="secondary loop-btn" disabled title="現在の画像を繰り返し自動めくり">
-                        画リピ</button>
+                        <div class="status-header-row">
+                            <button id="maskResetBtn" class="mask-btn-wide" disabled>M戻す</button>
+                            <button id="maskRevealBtn" class="mask-btn-wide" disabled>Mめくる</button>
+                            <button id="autoRewindBtn" disabled>もどり</button>
+                            <button id="autoPlayBtn" disabled>めくり</button>
+                        </div>
                 </div>
 
                 <div class="panel-scroll-area">
@@ -66,23 +62,46 @@
                                 <span id="imageIndexLabel" class="image-nav-label">1/1</span>
                                 <button id="nextImageBtn" class="nav-img-btn" title="次の画像">▶</button>
                             </div>
-                            
-                            <div class="autoplay-speed-ctrl inline-speed">
-                                <button id="speedDecBtn" class="small-btn">−</button>
-                                <input type="number" id="speedValueInput" value="0.6" min="0.1" max="2.0" step="0.1" readonly title="自動再生間隔 (秒)">
-                                <button id="speedIncBtn" class="small-btn">+</button>
-                            </div>
                         </div>
 
-                        <div class="status-header-row">
-                            <button id="maskResetBtn" class="mask-btn-wide" disabled>M戻す</button>
-                            <button id="maskRevealBtn" class="mask-btn-wide" disabled>Mめくる</button>
 
-                            <div class="step-display">
-                                <span id="currentStep" class="step-number">0</span>
-                                <button id="resetCurrentBtn" class="small-btn" title="この画像をリセット" disabled>↺</button>
-                            </div>
+
+                <div class="actions actions-grid-4 play-row">
+                    <div class="step-display">
+                        <span id="currentStep" class="step-number">0</span>
+                        <button id="resetCurrentBtn" class="small-btn" title="この画像をリセット" disabled>↺</button>
+                    </div>
+
+                    <div class="autoplay-speed-ctrl inline-speed">
+                        <label for="speedValueInput" class="speed-label">速度</label>
+                        <div class="speed-row-ctrl">
+                            <button id="speedDecBtn" class="small-btn">−</button>
+                            <input type="number" id="speedValueInput" value="0.6" min="0.1" max="2.0" step="0.1" readonly title="自動再生間隔 (秒)">
+                            <button id="speedIncBtn" class="small-btn">+</button>
                         </div>
+                    </div>
+                    <button id="loopFolderBtn" class="secondary loop-btn" disabled title="読み込んだ全画像を繰り返し自動めくり">全リピ</button>
+                    <button id="loopImageBtn" class="secondary loop-btn" disabled title="現在の画像を繰り返し自動めくり">画リピ</button>
+                </div>
+                <div class="input-group paint-group">
+                    <div class="color-palette tool-palette" id="colorPalette">
+                        <button type="button" class="tool-btn active" data-tool="pencil" title="鉛筆" aria-label="鉛筆" aria-pressed="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                        <button type="button" class="tool-btn" data-tool="line" title="線" aria-label="線" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><rect x="5" y="11" width="14" height="2"/></svg></button>
+                        <button type="button" class="tool-btn" data-tool="rect" title="四角" aria-label="四角" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M5 5h14v14H5V5zm2 2v10h10V7H7z"/></svg></button>
+                        <button type="button" class="tool-btn" data-tool="circle" title="丸" aria-label="丸" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/></svg></button>
+                        <button type="button" class="tool-btn" data-tool="fill" title="塗りつぶし (オンで図形を塗る)" aria-label="塗りつぶし (オンで図形を塗る)" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15a1.5 1.5 0 0 0 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10L10 5.21 14.79 10H5.21zM19 11.5s-2 2.17-2 3.5a2 2 0 0 0 4 0c0-1.33-2-3.5-2-3.5zM2 20h20v4H2z" transform="scale(.9) translate(1,1)"/></svg></button>
+                        <button type="button" class="tool-btn" data-tool="text" title="文字" aria-label="文字" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M9.93 13.5h4.14L12 7.98 9.93 13.5zM13 5h-2L5.5 19h2.1l1.12-3h6.55l1.12 3h2.1L13 5z"/></svg></button>
+                        <button type="button" class="tool-btn" data-tool="move" title="移動" aria-label="移動" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg></button>
+                        <button class="color-btn bg-red" data-color="#ef4444" title="赤" aria-label="赤色"></button>
+                        <button class="color-btn bg-green" data-color="#22c55e" title="緑" aria-label="緑色"></button>
+                        <button class="color-btn bg-blue" data-color="#3b82f6" title="青" aria-label="青色"></button>
+                        <button class="color-btn bg-purple" data-color="#a855f7" title="紫" aria-label="紫色"></button>
+                        <button class="color-btn bg-orange" data-color="#f97316" title="オレンジ" aria-label="オレンジ色"></button>
+                        <button class="color-btn bg-yellow" data-color="#eab308" title="黄" aria-label="黄色"></button>
+                        <button class="color-btn bg-white" data-color="#ffffff" title="白" aria-label="白色"></button>
+                    </div>
+                    <button id="clearPaintBtn" class="secondary clear-paint-btn">🗑️ ペイントを消去</button>
+                </div>
 
                     <div class="settings-row">
                         <div class="setting-group">
@@ -105,21 +124,8 @@
                     </div>
                 </div>
 
-                <div class="input-group paint-group">
-                    <h3>🎨 ペイント (予測線)</h3>
-                    <div class="color-palette" id="colorPalette">
-                        <button class="color-btn bg-red" data-color="#ef4444" title="赤"></button>
-                        <button class="color-btn bg-green" data-color="#22c55e" title="緑"></button>
-                        <button class="color-btn bg-blue" data-color="#3b82f6" title="青"></button>
-                        <button class="color-btn bg-purple" data-color="#a855f7" title="紫"></button>
-                        <button class="color-btn bg-orange" data-color="#f97316" title="オレンジ"></button>
-                        <button class="color-btn bg-yellow" data-color="#eab308" title="黄"></button>
-                        <button class="color-btn border-btn bg-white" data-color="#ffffff" title="白"></button>
-                        <button class="color-btn active" data-color="" title="ペイントオフ">🚫</button>
-                    </div>
-                    <button id="clearPaintBtn" class="secondary clear-paint-btn">🗑️ ペイントを消去</button>
-                </div>
-
+                <!-- 削除済み機能 (script.js が要素を参照するため非表示で保持) -->
+                <div class="removed-features" hidden>
                 <!-- Candle Width Calibration -->
                 <div class="calibration-section">
                     <h3>📏 ローソク足キャリブレーション</h3>
@@ -131,8 +137,6 @@
                 <div class="calibration-section price-cal">
                     <h3>💰 価格キャリブレーション</h3>
                     <button id="priceCalibrateBtn" class="calibrate-btn price-cal-btn" disabled>💰 価格軸を設定</button>
-                    <button id="autoCalibrateBtn" class="calibrate-btn auto-cal-btn auto-cal-margin" disabled>🤖
-                        自動キャリブレーション (画像から数値取得)</button>
                     <div id="priceCalibrateStatus" class="calibrate-status"></div>
                     <div class="price-read-toggle">
                         <label class="toggle-label" for="priceReadModeToggle">
@@ -236,13 +240,14 @@
                     <h3>📋 履歴</h3>
                     <ul id="historyList"></ul>
                 </div>
+                </div><!-- /.removed-features -->
                 </div> <!-- /.panel-scroll-area -->
 
                 </div><!-- /.panel-grid -->
             </aside>
         </main>
     </div>
-    <script src="script.js?v=25"></script>
+    <script src="script.js?v=27"></script>
 </body>
 
 </html>

@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     /* Dark Purple Theme */
     --bg-color: #1a1025;
     --panel-bg: #241535;
@@ -519,9 +519,9 @@ body.dark-theme .calibration-section.price-cal .calibrate-status.hint {
 
 .status-header-row {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     align-items: center;
-    gap: 1.5px; /* 要素間の隙間をさらに詰める */
+    gap: 0.3rem; /* 要素間の隙間をさらに詰める */
     padding: 0.3rem 0; /* 左右パディングをなくして幅を広げる */
     margin-bottom: 0.4rem;
     border-bottom: 1px solid var(--border-color);
@@ -606,6 +606,15 @@ body.dark-theme .calibration-section.price-cal .calibrate-status.hint {
     border-radius: 4px;
     padding: 1px;
     width: auto;
+}
+
+.speed-label {
+    font-size: 0.58rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    margin-right: 0.2rem;
+    padding-left: 0.2rem;
+    white-space: nowrap;
 }
 
 .inline-speed input {
@@ -1182,13 +1191,16 @@ select:focus {
     gap: 0.2rem;
     margin-top: 0.2rem;
     justify-content: space-between;
+    width: 50%;
 }
 
 .color-btn {
     flex: 1;
     min-width: 0;
-    height: 20px;
-    border-radius: 4px;
+    min-height: 0;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
     border: 2px solid transparent;
     background-image: none;
     /* override default button gradient */
@@ -1198,7 +1210,7 @@ select:focus {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 10px;
+    font-size: 9px;
     box-shadow: none;
 }
 
@@ -1258,6 +1270,12 @@ body.dark-theme .color-btn.active {
         padding: 0;
     }
 
+    .speed-label {
+        font-size: 0.72rem;
+        margin-right: 0.25rem;
+        padding-left: 0.3rem;
+    }
+
     /* actions-grid のセルも最低高さを確保 */
     .actions.actions-grid button,
     .actions.actions-grid .upload-btn,
@@ -1283,7 +1301,11 @@ body.dark-theme .color-btn.active {
 
     /* color-btn */
     .color-btn {
-        height: 32px;
+        height: auto;
+        min-height: 0;
+        aspect-ratio: 1 / 1;
+        border-radius: 50%;
+        padding: 0;
     }
 
     /* stepSizeInput などをスマホ向け */
@@ -1464,3 +1486,94 @@ body.dark-theme .color-btn.active {
 .hidden {
     display: none;
 }
+/* 速度セル: 4列グリッド内に収める */
+.status-header-row .inline-speed, .play-row .inline-speed { flex-direction: column; justify-content: center; gap: 0; padding: 0; width: 100%; min-width: 0; height: 28px; }
+.status-header-row .speed-label, .play-row .speed-label { font-size: 0.5rem; margin: 0; padding: 0; line-height: 1; }
+.status-header-row .speed-row-ctrl, .play-row .speed-row-ctrl { display: flex; align-items: center; justify-content: center; width: 100%; }
+.status-header-row .inline-speed .small-btn, .play-row .inline-speed .small-btn { width: 12px !important; min-height: 12px !important; height: 14px !important; padding: 0 !important; font-size: 0.7rem !important; }
+.status-header-row .inline-speed input, .play-row .inline-speed input { width: 20px !important; height: 14px !important; font-size: 0.65rem !important; min-width: 0; }
+.status-header-row .step-display, .play-row .step-display { justify-content: center; gap: 0.1rem; min-width: 0; }
+
+/* もどり/めくり行: スクロールエリア内で詰めて配置 */
+.actions.play-row { padding: 0 !important; margin: 0 0 0.3rem 0 !important; background: transparent !important; border: none !important; }
+@media (max-width: 768px) and (orientation: portrait) {
+    .canvas-container { flex: 0 0 64dvh; max-height: 75dvh; }
+    .panel-scroll-area { padding: 0.4rem 0.8rem; gap: 0.3rem; }
+}
+
+
+/* ペイント: 上部へ移動・1行表示 */
+.paint-group { display: flex; align-items: center; gap: 0.3rem; margin: 0 0 0.3rem 0; padding: 0; }
+.paint-group .color-palette { width: auto; flex: 1; margin: 0; }
+.paint-group .clear-paint-btn { width: auto; margin: 0; flex: 0 0 auto; }
+.panel-scroll-area { padding-bottom: 1.5rem; }
+
+
+.removed-features { display: none !important; }
+
+
+/* フォルダ/画像ボタン: ダーク背景+緑枠+アイコン */
+.actions-grid-4 .upload-btn-folder, .actions-grid-4 .upload-btn-secondary { background: rgba(16,185,129,0.12) !important; color: #34d399 !important; border: 1.5px solid #10b981 !important; box-shadow: none !important; gap: 0.3rem; }
+.actions-grid-4 .upload-btn .btn-icon { flex: 0 0 auto; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+
+/* ツールバー風ペイントパレット (高さ約2/3) */
+.paint-group { flex-wrap: wrap; }
+.paint-group .tool-palette { flex: 1 1 100%; display: flex; align-items: center; gap: 2px; width: 100%; }
+.tool-palette .tool-btn { flex: 1; min-width: 0; height: 18px; min-height: 0; padding: 0; border-radius: 4px; background: #2a2a33; background-image: none; color: #e5e7eb; border: 1px solid #3a3a45; box-shadow: none; display: flex; align-items: center; justify-content: center; cursor: default; }
+.tool-palette .tool-btn.active { background: #3b9be0; border-color: #3b9be0; color: #fff; }
+.tool-palette .color-btn { flex: 1; height: 18px; aspect-ratio: auto; border-radius: 9px; }
+.paint-group .clear-paint-btn { flex: 1 1 100%; }
+
+.tool-palette .tool-btn { cursor: pointer; }
+
+
+/* 1行目 (フォルダ/画像/前/次): ボタン横幅を半分に */
+.actions.actions-grid-4:not(.play-row) { grid-template-columns: repeat(4, calc((100% - 0.9rem) / 8)); justify-content: start; }
+.actions.actions-grid-4:not(.play-row) button, .actions.actions-grid-4:not(.play-row) .upload-btn { min-width: 0; padding: 0; }
+
+
+/* M戻す/Mめくるを半幅に。もどり/めくりは通常幅 */
+.status-header-row { grid-template-columns: calc((100% - 0.9rem) / 8) calc((100% - 0.9rem) / 8) calc((100% - 0.9rem) / 4) calc((100% - 0.9rem) / 4); justify-content: start; }
+.status-header-row .mask-btn-wide { font-size: 0.5rem; letter-spacing: -0.5px; }
+.status-header-row > button:not(.mask-btn-wide) { height: 28px; padding: 0; width: 100%; font-size: 0.68rem; }
+.play-row .step-display .small-btn { width: 18px !important; height: 22px !important; min-height: 0 !important; padding: 0 !important; flex: 0 0 auto; }
+.play-row .inline-speed .small-btn { width: 12px !important; height: 14px !important; }
+
+/* もどり/めくり: 横幅半分・高さはM戻す系と同じ */
+.status-header-row { grid-template-columns: repeat(4, calc((100% - 0.9rem) / 8)); }
+.status-header-row > button:not(.mask-btn-wide) { height: 28px; font-size: 0.5rem; letter-spacing: -0.5px; }
+
+
+.status-header-row > button { min-height: 28px !important; height: 28px !important; box-sizing: border-box; }
+
+/* フォルダ/画像/前/次 の右隣に M戻す/Mめくる/もどり/めくり を配置 */
+.top-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; flex: 0 0 auto; align-items: center; padding: 0.3rem 0.8rem; background-color: var(--panel-bg); z-index: 10; }
+.top-controls > .actions.actions-grid-4:not(.play-row) { grid-template-columns: repeat(4, 1fr); padding: 0; margin: 0; background: transparent; }
+.top-controls > .status-header-row { grid-template-columns: repeat(4, 1fr); gap: 0.3rem; padding: 0; margin: 0; border: none; }
+
+/* 全ツールの縦幅を M戻す/Mめくる/もどり/めくり (28px) に統一 */
+.top-controls .actions.actions-grid-4 button,
+.top-controls .actions.actions-grid-4 .upload-btn,
+.play-row > button,
+.play-row .step-display,
+.play-row .inline-speed,
+.tool-palette .tool-btn,
+.tool-palette .color-btn,
+.paint-group .clear-paint-btn,
+.settings-row .step-control button,
+.settings-row .step-control input,
+.nav-img-btn {
+    height: 28px !important;
+    min-height: 28px !important;
+    max-height: 28px !important;
+    box-sizing: border-box;
+}
+.play-row .step-display .small-btn,
+.settings-row .step-control .small-btn {
+    height: 28px !important;
+    min-height: 28px !important;
+}
+.tool-palette .color-btn { aspect-ratio: auto; }
+.paint-group .clear-paint-btn { padding: 0; }

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Chart Learning App - Logic
  * ローソク足1本ずつめくり + 価格キャリブレーション + リアルタイム損益計算
  */
@@ -63,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Price calibration
     const priceCalibrateBtn = document.getElementById('priceCalibrateBtn');
-    const autoCalibrateBtn = document.getElementById('autoCalibrateBtn');
     const priceCalibrateStatus = document.getElementById('priceCalibrateStatus');
     const priceReadModeToggle = document.getElementById('priceReadModeToggle');
 
@@ -115,6 +114,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // Paint State
         paintColor: null,
         strokes: [],
+        autoPlayRestartTimer: null,
+        loadToken: 0,
+        paintTool: 'pencil',
+        paintFill: false,
+        movingStroke: null,
         currentStroke: null,
         isPainting: false,
 
@@ -168,7 +172,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (maskResetBtn) maskResetBtn.addEventListener('click', handleMaskReset);
     if (maskRevealBtn) maskRevealBtn.addEventListener('click', handleMaskReveal);
     if (priceCalibrateBtn) priceCalibrateBtn.addEventListener('click', startPriceCalibration);
-    if (autoCalibrateBtn) autoCalibrateBtn.addEventListener('click', handleAutoCalibration);
     if (priceReadModeToggle) priceReadModeToggle.addEventListener('change', (e) => {
         appState.priceReadMode = e.target.checked;
         updateCursorStyle();
@@ -179,11 +182,36 @@ document.addEventListener('DOMContentLoaded', () => {
     const colorBtns = document.querySelectorAll('.color-btn');
     colorBtns.forEach(btn => {
         btn.addEventListener('click', (e) => {
-            colorBtns.forEach(b => b.classList.remove('active'));
             const target = e.currentTarget;
-            target.classList.add('active');
-            appState.paintColor = target.dataset.color || null;
+            const wasActive = target.classList.contains('active');
+            colorBtns.forEach(b => b.classList.remove('active'));
+            if (wasActive) {
+                appState.paintColor = null; // 再クリックでペイントオフ
+            } else {
+                target.classList.add('active');
+                appState.paintColor = target.dataset.color || null;
+            }
             updateCursorStyle();
+        });
+    });
+    // ツールボタン (鉛筆/線/四角/丸/塗りつぶし/文字/移動)
+    const toolBtns = document.querySelectorAll('.tool-btn');
+    toolBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tool = btn.dataset.tool;
+            if (tool === 'fill') {
+                appState.paintFill = !appState.paintFill;
+                btn.classList.toggle('active', appState.paintFill);
+                btn.setAttribute('aria-pressed', String(appState.paintFill));
+                return;
+            }
+            appState.paintTool = tool;
+            toolBtns.forEach(b => {
+                if (b.dataset.tool !== 'fill') {
+                    b.classList.toggle('active', b === btn);
+                    b.setAttribute('aria-pressed', String(b === btn));
+                }
+            });
         });
     });
     const clearPaintBtn = document.getElementById('clearPaintBtn');
@@ -290,7 +318,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        if (['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName)) return;
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+            if (appState.strokes.length) { e.preventDefault(); appState.strokes.pop(); drawCanvas(); }
+            return;
+        }
 
         if (e.key === 'ArrowRight' || e.key === ' ') {
             if (appState.image && !appState.isFinished && !appState.isCalibrating && !appState.isPriceCalibrating && nextBtn && !nextBtn.disabled) {
@@ -454,10 +486,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const scale = appState.scale || 1.0;
         const threshold = 15 / scale;
 
+        // 移動ツール: 選択した図形をドラッグ移動
+        if (appState.movingStroke) {
+            if (e.cancelable) e.preventDefault();
+            const m = appState.movingStroke;
+            const dx = coords.x - m.last.x, dy = coords.y - m.last.y;
+            m.stroke.points.forEach(p => { p.x += dx; p.y += dy; });
+            m.last = { x: coords.x, y: coords.y };
+            requestDrawCanvas();
+            return;
+        }
+
         // If paint mode is active, handle drawing
         if (appState.isPainting && appState.currentStroke) {
             if (e.cancelable) e.preventDefault();
-            appState.currentStroke.points.push({ x: coords.x, y: coords.y });
+            const cs = appState.currentStroke;
+            if (cs.type === 'pen') {
+                cs.points.push({ x: coords.x, y: coords.y });
+            } else {
+                cs.points[1] = { x: coords.x, y: coords.y };
+            }
             requestDrawCanvas();
             return; // skip other hover logic while drawing
         }
@@ -494,16 +542,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Handle painting
         if (appState.paintColor) {
+            const tool = appState.paintTool;
+            if (e.cancelable) e.preventDefault();
+            if (tool === 'text') {
+                const txt = window.prompt('テキストを入力');
+                if (txt) {
+                    appState.strokes.push({ type: 'text', color: appState.paintColor, text: txt, points: [{ x: coords.x, y: coords.y }] });
+                    drawCanvas();
+                }
+                return;
+            }
+            if (tool === 'move') {
+                const hit = findStrokeAt(coords.x, coords.y, 12 / scale);
+                if (hit) appState.movingStroke = { stroke: hit, last: { x: coords.x, y: coords.y } };
+                return;
+            }
             appState.isPainting = true;
             appState.currentStroke = {
+                type: tool === 'pencil' ? 'pen' : tool,
+                fill: appState.paintFill,
                 color: appState.paintColor,
                 points: [{ x: coords.x, y: coords.y }]
             };
-            if (e.cancelable) e.preventDefault();
         }
     }
 
     function handleCanvasMouseUp(e) {
+        if (appState.movingStroke) {
+            appState.movingStroke = null;
+            drawCanvas();
+        }
         if (appState.isDraggingMask) {
             appState.isDraggingMask = false;
             syncMaskState();
@@ -513,7 +581,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (appState.isPainting) {
             appState.isPainting = false;
             if (appState.currentStroke) {
-                appState.strokes.push(appState.currentStroke);
+                const cs = appState.currentStroke;
+                if (cs.type === 'pen' || cs.points.length >= 2) appState.strokes.push(cs);
                 appState.currentStroke = null;
             }
             updateCursorStyle();
@@ -522,13 +591,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleCanvasMouseLeave() {
+        appState.movingStroke = null;
         appState.showCrosshair = false;
         appState.mouseX = -1;
         appState.mouseY = -1;
         if (appState.isPainting) {
             appState.isPainting = false;
             if (appState.currentStroke) {
-                appState.strokes.push(appState.currentStroke);
+                const cs = appState.currentStroke;
+                if (cs.type === 'pen' || cs.points.length >= 2) appState.strokes.push(cs);
                 appState.currentStroke = null;
             }
         }
@@ -743,263 +814,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    //  AUTO CALIBRATION (OCR)
-    // ==========================================
-    async function handleAutoCalibration() {
-        if (!appState.image) { alert('先に画像をアップロードしてください'); return; }
-        if (typeof Tesseract === 'undefined') { alert('OCRライブラリが読み込まれていません。インターネット接続を確認してください。'); return; }
-
-        if (appState.isCalibrating) cancelCandleCalibration();
-        if (appState.isPriceCalibrating) cancelPriceCalibration();
-
-        if (priceCalibrateStatus) {
-            priceCalibrateStatus.textContent = '⏳ 画像を解析中... (これには数秒かかる場合があります)';
-            priceCalibrateStatus.className = 'calibrate-status active';
-        }
-        if (autoCalibrateBtn) {
-            autoCalibrateBtn.disabled = true;
-            autoCalibrateBtn.textContent = '⏳ 解析中...';
-        }
-
-        try {
-            // Create OCR canvas
-            const ocrCanvas = document.createElement('canvas');
-            ocrCanvas.width = appState.image.width;
-            ocrCanvas.height = appState.image.height;
-            const ocrCtx = ocrCanvas.getContext('2d');
-            ocrCtx.drawImage(appState.image, 0, 0);
-
-            const imgData = ocrCtx.getImageData(0, 0, ocrCanvas.width, ocrCanvas.height);
-            const data = imgData.data;
-
-            // Binarization for better OCR (auto-detect light vs dark background)
-            let totalLum = 0;
-            const pixelCount = data.length / 4;
-            for (let i = 0; i < data.length; i += 4) {
-                totalLum += (data[i] + data[i + 1] + data[i + 2]) / 3;
-            }
-            const isLightBg = (totalLum / Math.max(1, pixelCount)) > 128;
-
-            for (let i = 0; i < data.length; i += 4) {
-                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                // Normalize to Black text (0) on White background (255)
-                const val = isLightBg ? (avg < 150 ? 0 : 255) : (avg > 90 ? 0 : 255);
-                data[i] = val;     // R
-                data[i + 1] = val; // G
-                data[i + 2] = val; // B
-            }
-            ocrCtx.putImageData(imgData, 0, 0);
-
-            // Pass to Tesseract with whitelist for numbers
-            const result = await Tesseract.recognize(
-                ocrCanvas,
-                'eng',
-                {
-                    logger: m => {
-                        console.log(m);
-                        if (priceCalibrateStatus && m.status) {
-                            const prog = m.progress ? Math.round(m.progress * 100) : 0;
-                            priceCalibrateStatus.textContent = `⏳ ${m.status} (${prog}%)`;
-                        }
-                    }
-                }
-            );
-
-            const words = result.data.words;
-            let numbers = [];
-
-            words.forEach(w => {
-                // Remove commas for parsing, but keep logic distinct
-                const rawText = w.text.trim();
-                // Match numbers like 1,234.56 or 1000
-                const numMatch = rawText.match(/^[1-9][0-9,]*(\.[0-9]+)?$/);
-
-                if (numMatch) {
-                    const cleanVal = parseFloat(rawText.replace(/,/g, ''));
-                    if (!isNaN(cleanVal) && cleanVal > 0) {
-                        const box = w.bbox;
-
-                        // Filter by Position (Ignore Header/Footer)
-                        // Top 8% (Title area) and Bottom 5% (Date area)
-                        if (box.y0 < appState.height * 0.08) return;
-                        if (box.y1 > appState.height * 0.95) return;
-
-                        // Calculate center Y
-                        const cy = (box.y0 + box.y1) / 2;
-                        const cx = (box.x0 + box.x1) / 2;
-
-                        numbers.push({ price: cleanVal, y: cy, x: cx, box: w.bbox });
-                    }
-                }
-            });
-
-            if (numbers.length < 2) {
-                alert('数値が十分に読み取れませんでした。手動設定を試してください。');
-                resetAutoCalButton();
-                return;
-            }
-
-            console.log("Detected numbers:", numbers);
-
-            // --- RANSAC Algorithm ---
-            // Find the best line model: Price = m * y + c
-            // that fits the most points.
-
-            let bestInliers = [];
-            let bestModel = null; // { m, c }
-
-            // Try every pair of points
-            for (let i = 0; i < numbers.length; i++) {
-                for (let j = i + 1; j < numbers.length; j++) {
-                    const p1 = numbers[i];
-                    const p2 = numbers[j];
-
-                    const dy = p2.y - p1.y;
-                    const dp = p2.price - p1.price;
-
-                    // Reject if points are too close vertically
-                    if (Math.abs(dy) < 20) continue;
-
-                    const m = dp / dy;
-
-                    // Sanity check for slope "m"
-                    // Screen Y increases downwards.
-                    // Price usually increases upwards.
-                    // So Higher Price -> Smaller Y.
-                    // dp (p2-p1) and dy (y2-y1).
-                    // If p2 is higher price, y2 should be smaller.
-                    // dp > 0 implies dy < 0.
-                    // So m should be NEGATIVE.
-                    if (m >= 0) continue; // Inverted axis or error?
-
-                    const c = p1.price - m * p1.y;
-
-                    // Count inliers
-                    const inliers = [];
-                    numbers.forEach(curr => {
-                        const predicted = m * curr.y + c;
-                        const error = Math.abs(predicted - curr.price);
-
-                        // Tolerance: larger of 1% or 5 units
-                        const tolerance = Math.max(5, curr.price * 0.01);
-
-                        if (error < tolerance) {
-                            inliers.push(curr);
-                        }
-                    });
-
-                    // Keep best
-                    if (inliers.length > bestInliers.length) {
-                        bestInliers = inliers;
-                        bestModel = { m, c };
-                    } else if (inliers.length === bestInliers.length) {
-                        // Tie-breaker: prefer wider Y range
-                        if (bestModel) {
-                            const ysNew = inliers.map(n => n.y);
-                            const spanNew = Math.max(...ysNew) - Math.min(...ysNew);
-                            const ysOld = bestInliers.map(n => n.y);
-                            const spanOld = Math.max(...ysOld) - Math.min(...ysOld);
-
-                            if (spanNew > spanOld) {
-                                bestInliers = inliers;
-                                bestModel = { m, c };
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (!bestModel || bestInliers.length < 2) {
-                alert('価格軸の特定に失敗しました（整合性の取れる数値が見つかりません）。手動設定を試してください。');
-                resetAutoCalButton();
-                return;
-            }
-
-            // Recalculate Least Squares fit for the best inliers to get refined m, c
-            let sumY = 0, sumP = 0, sumYP = 0, sumYY = 0;
-            const N = bestInliers.length;
-            bestInliers.forEach(n => {
-                sumY += n.y;
-                sumP += n.price;
-                sumYP += n.y * n.price;
-                sumYY += n.y * n.y;
-            });
-
-            // Linear regression: Price = m * y + c
-            // m = (N*sumYP - sumY*sumP) / (N*sumYY - sumY*sumY)
-            // c = (sumP - m*sumY) / N
-            const denom = (N * sumYY - sumY * sumY);
-            if (Math.abs(denom) < 1e-9) {
-                console.warn("Singular matrix in regression");
-            } else {
-                const refinedM = (N * sumYP - sumY * sumP) / denom;
-                const refinedC = (sumP - refinedM * sumY) / N;
-                bestModel = { m: refinedM, c: refinedC };
-            }
-
-            console.log("Best Model:", bestModel, "Inliers:", bestInliers);
-
-            // Use the min and max INLIERS to show the user what was matched.
-            bestInliers.sort((a, b) => a.price - b.price);
-            const minP = bestInliers[0];
-            const maxP = bestInliers[bestInliers.length - 1];
-
-            if (maxP.price === minP.price) {
-                alert('異なる価格が見つかりませんでした。手動設定を試してください。');
-                resetAutoCalButton();
-                return;
-            }
-
-            // Consistency check: Max price should be at Top (smaller Y)
-            if (maxP.y > minP.y) {
-                // Check if we have an inverted axis or detection error.
-                // But we trust the values.
-                console.warn("Max price Y > Min price Y. This is unusual for standard charts.");
-            }
-
-            appState.priceCalPoints = [
-                { y: maxP.y, price: maxP.price },
-                { y: minP.y, price: minP.price }
-            ];
-
-            appState.priceCalibrated = true;
-            appState.priceReadMode = true;
-            updateCursorStyle();
-
-            if (priceCalibrateStatus) {
-                priceCalibrateStatus.textContent = `✅ 自動設定完了: ¥${maxP.price.toLocaleString()} (Y:${Math.round(maxP.y)}) ↔ ¥${minP.price.toLocaleString()} (Y:${Math.round(minP.y)})`;
-                priceCalibrateStatus.className = 'calibrate-status success';
-            }
-            if (priceReadModeToggle) {
-                priceReadModeToggle.checked = true;
-                priceReadModeToggle.disabled = false;
-            }
-            if (priceCalibrateBtn) {
-                priceCalibrateBtn.textContent = '💰 再計測';
-                priceCalibrateBtn.disabled = false;
-            }
-            drawCanvas();
-
-        } catch (e) {
-            console.error(e);
-            alert(`OCR解析に失敗しました。\n詳細: ${e.message || e}\n\n※インターネット接続が必要です。`);
-            if (priceCalibrateStatus) {
-                priceCalibrateStatus.textContent = '❌ 解析エラー';
-                priceCalibrateStatus.className = 'calibrate-status error';
-            }
-        } finally {
-            resetAutoCalButton();
-        }
-    }
-
-    function resetAutoCalButton() {
-        if (autoCalibrateBtn) {
-            autoCalibrateBtn.disabled = !appState.image;
-            autoCalibrateBtn.textContent = '🤖 自動キャリブレーション (画像から数値取得)';
-        }
-    }
-
-    // ==========================================
     //  PRICE READING FROM CLICK
     // ==========================================
     function yToPrice(imageY) {
@@ -1104,14 +918,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadImageAt(index) {
         const files = appState.imageFiles;
         if (index < 0 || index >= files.length) return;
-        const file = files[index];
-        const reader = new FileReader();
-        reader.onload = function (event) {
-            const img = new Image();
-            img.onload = function () { initGame(img); };
-            img.src = event.target.result;
+        const token = ++appState.loadToken;
+        loadImageFile(files[index], img => {
+            if (token !== appState.loadToken) return; // 古い読み込みは破棄
+            initGame(img);
+        });
+    }
+
+    // File から Image を読み込む (ObjectURL 使用・失敗時はエラー通知)
+    function loadImageFile(file, onLoaded, onFail) {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => { URL.revokeObjectURL(url); onLoaded(img); };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            console.error('画像の読み込みに失敗しました:', file && file.name);
+            if (onFail) onFail(); else alert('画像を読み込めませんでした: ' + (file && file.name));
         };
-        reader.readAsDataURL(file);
+        img.src = url;
     }
 
     function navigateImage(delta) {
@@ -1212,9 +1036,6 @@ document.addEventListener('DOMContentLoaded', () => {
             priceCalibrateBtn.textContent = '💰 価格軸を設定';
             priceCalibrateBtn.classList.remove('calibrating');
             priceCalibrateBtn.disabled = false;
-        }
-        if (autoCalibrateBtn) {
-            autoCalibrateBtn.disabled = false;
         }
         if (priceCalibrateStatus) {
             priceCalibrateStatus.textContent = '💡 価格軸を設定すると、クリックで株価を自動読み取りできます';
@@ -1674,25 +1495,89 @@ document.addEventListener('DOMContentLoaded', () => {
 
         allStrokes.forEach(stroke => {
             if (!stroke.points || stroke.points.length === 0) return;
+            const type = stroke.type || 'pen';
+            const lw = stroke.color === '#ffffff' ? 8 : 4;
 
-            ctx.beginPath();
-            if (stroke.points.length === 1) {
+            if (type === 'text') {
+                ctx.font = 'bold 24px "Noto Sans JP", sans-serif';
+                ctx.textBaseline = 'top';
                 ctx.fillStyle = stroke.color;
-                ctx.arc(stroke.points[0].x, stroke.points[0].y, 2, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.fillText(stroke.text, stroke.points[0].x, stroke.points[0].y);
                 return;
             }
 
-            ctx.strokeStyle = stroke.color;
-            ctx.lineWidth = stroke.color === '#ffffff' ? 8 : 4;
-            ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-            for (let i = 1; i < stroke.points.length; i++) {
-                ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+            ctx.beginPath();
+            if (type === 'pen') {
+                if (stroke.points.length === 1) {
+                    ctx.fillStyle = stroke.color;
+                    ctx.arc(stroke.points[0].x, stroke.points[0].y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    return;
+                }
+                ctx.strokeStyle = stroke.color;
+                ctx.lineWidth = lw;
+                ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+                for (let i = 1; i < stroke.points.length; i++) {
+                    ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+                }
+                ctx.stroke();
+                return;
             }
-            ctx.stroke();
+
+            if (stroke.points.length < 2) return;
+            const a = stroke.points[0], b = stroke.points[1];
+            ctx.strokeStyle = stroke.color;
+            ctx.fillStyle = stroke.color;
+            ctx.lineWidth = lw;
+            if (type === 'line') {
+                ctx.moveTo(a.x, a.y);
+                ctx.lineTo(b.x, b.y);
+                ctx.stroke();
+            } else if (type === 'rect') {
+                ctx.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+                if (stroke.fill) { ctx.globalAlpha = 0.35; ctx.fill(); ctx.globalAlpha = 1; }
+                ctx.stroke();
+            } else if (type === 'circle') {
+                ctx.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, Math.abs(b.x - a.x) / 2, Math.abs(b.y - a.y) / 2, 0, 0, Math.PI * 2);
+                if (stroke.fill) { ctx.globalAlpha = 0.35; ctx.fill(); ctx.globalAlpha = 1; }
+                ctx.stroke();
+            }
         });
     }
 
+    // 指定座標にある描画オブジェクト(上に描いたもの優先)を探す
+    function findStrokeAt(x, y, tol) {
+        const distSeg = (p, a, b) => {
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const l2 = dx * dx + dy * dy;
+            let t = l2 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / l2 : 0;
+            t = Math.max(0, Math.min(1, t));
+            return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+        };
+        const pt = { x, y };
+        for (let i = appState.strokes.length - 1; i >= 0; i--) {
+            const s = appState.strokes[i];
+            const pts = s.points;
+            if (!pts || !pts.length) continue;
+            const type = s.type || 'pen';
+            if (type === 'text') {
+                ctx.font = 'bold 24px "Noto Sans JP", sans-serif';
+                const w = ctx.measureText(s.text).width;
+                if (x >= pts[0].x - tol && x <= pts[0].x + w + tol && y >= pts[0].y - tol && y <= pts[0].y + 28 + tol) return s;
+            } else if (type === 'rect' || type === 'circle') {
+                if (pts.length < 2) continue;
+                const minX = Math.min(pts[0].x, pts[1].x) - tol, maxX = Math.max(pts[0].x, pts[1].x) + tol;
+                const minY = Math.min(pts[0].y, pts[1].y) - tol, maxY = Math.max(pts[0].y, pts[1].y) + tol;
+                if (x >= minX && x <= maxX && y >= minY && y <= maxY) return s;
+            } else {
+                if (pts.length === 1 && Math.hypot(x - pts[0].x, y - pts[0].y) <= tol) return s;
+                for (let k = 1; k < pts.length; k++) {
+                    if (distSeg(pt, pts[k - 1], pts[k]) <= tol) return s;
+                }
+            }
+        }
+        return null;
+    }
     // ==========================================
     //  DRAWING HELPERS
     // ==========================================
@@ -2006,8 +1891,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     //  AUTO PLAY / AUTO REWIND
     // ==========================================
+    // 画リピ/全リピ時の再開タイマー (停止操作で確実にキャンセルできるよう保持する)
+    function scheduleAutoPlayRestart() {
+        clearTimeout(appState.autoPlayRestartTimer);
+        appState.autoPlayRestartTimer = setTimeout(() => {
+            appState.autoPlayRestartTimer = null;
+            startAutoPlay();
+        }, 300);
+    }
+
     function toggleAutoPlay() {
-        if (appState.autoPlayInterval) {
+        if (appState.autoPlayInterval || appState.autoPlayRestartTimer) {
             stopAutoPlay();
         } else {
             startAutoPlay();
@@ -2066,7 +1960,7 @@ document.addEventListener('DOMContentLoaded', () => {
             initGame(appState.image, continueAutoPlay);
             appState.visibleWidth = appState.stepSize * 2;
             if (continueAutoPlay) {
-                setTimeout(() => startAutoPlay(), 300);
+                scheduleAutoPlayRestart();
             } else {
                 stopAutoPlay();
             }
@@ -2084,7 +1978,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 initGame(appState.image, continueAutoPlay);
                 appState.visibleWidth = appState.stepSize * 2;
                 if (continueAutoPlay) {
-                    setTimeout(() => startAutoPlay(), 300);
+                    scheduleAutoPlayRestart();
                 } else {
                     stopAutoPlay();
                 }
@@ -2092,20 +1986,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 appState.imageFileIndex = nextIndex;
                 updateImageNavUI();
                 const file = appState.imageFiles[nextIndex];
-                const reader = new FileReader();
-                reader.onload = function (event) {
-                    const img = new Image();
-                    img.onload = function () {
-                        initGame(img, continueAutoPlay);
-                        if (continueAutoPlay) {
-                            setTimeout(() => startAutoPlay(), 300);
-                        } else {
-                            stopAutoPlay();
-                        }
-                    };
-                    img.src = event.target.result;
-                };
-                reader.readAsDataURL(file);
+                const token = ++appState.loadToken;
+                loadImageFile(file, img => {
+                    if (token !== appState.loadToken) return;
+                    initGame(img, continueAutoPlay);
+                    if (continueAutoPlay) {
+                        scheduleAutoPlayRestart();
+                    } else {
+                        stopAutoPlay();
+                    }
+                }, () => {
+                    stopAutoPlay();
+                    alert('画像を読み込めなかったため自動再生を停止しました: ' + (file && file.name));
+                });
             }
         } else {
             stopAutoPlay();
@@ -2113,6 +2006,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function stopAutoPlay() {
+        if (appState.autoPlayRestartTimer) {
+            clearTimeout(appState.autoPlayRestartTimer);
+            appState.autoPlayRestartTimer = null;
+        }
         if (appState.autoPlayInterval) {
             clearInterval(appState.autoPlayInterval);
             appState.autoPlayInterval = null;
