@@ -1597,7 +1597,3 @@ body.dark-theme .color-btn.active {
 .settings-row .step-control { display: flex; align-items: center; justify-content: center; width: 100%; gap: 1px; }
 .settings-row .step-control .small-btn { width: 12px !important; min-width: 0 !important; height: 14px !important; min-height: 12px !important; max-height: 14px !important; padding: 0 !important; font-size: 0.7rem !important; }
 .settings-row .step-control input { width: 20px !important; min-width: 0; height: 14px !important; min-height: 0 !important; max-height: 14px !important; padding: 0 !important; font-size: 0.65rem !important; text-align: center; background: transparent; border: none; }
-
-/* ツールアイコンボタンを フォルダ/画像 ボタンの形(角丸8px・緑枠・暗い背景)に合わせる */
-.tool-palette .tool-btn { border-radius: 8px !important; background: rgba(16,185,129,0.12) !important; color: #34d399 !important; border: 1.5px solid #10b981 !important; box-shadow: none !important; }
-.tool-palette .tool-btn.active { background: rgba(16,185,129,0.4) !important; color: #fff !important; border-color: #34d399 !important; }
