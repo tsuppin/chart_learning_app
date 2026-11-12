@@ -499,6 +499,244 @@ document.addEventListener('DOMContentLoaded', () => {
         if (appState.image) drawCanvas();
     });
 
+    // ==========================================
+    //  GESTURE STATE & TOUCH / MOUSE CONTROLS
+    // ==========================================
+    const gestureState = {
+        isPinching: false,
+        startDist: 0,
+        startScale: 1.0,
+        startCenter: { x: 0, y: 0 },
+        initialScroll: { left: 0, top: 0 },
+        pivotImg: { x: 0, y: 0 },
+
+        // 1本指スワイプ移動（パン）
+        isOneFingerPan: false,
+        touch1Start: { x: 0, y: 0, time: 0 },
+        touch1Last: { x: 0, y: 0 },
+        totalPanDist: 0,
+
+        // クールダウン（ピンチ・パン後のクリックやめくり誤爆防止）
+        ignoreClicksUntil: 0
+    };
+
+    const mousePanState = {
+        isPanning: false,
+        startX: 0,
+        startY: 0,
+        startScrollLeft: 0,
+        startScrollTop: 0,
+        hasMoved: false
+    };
+
+    function handleTouchStart(e) {
+        if (!appState.image) return;
+
+        // 2本指操作: ピンチズーム & 2本指パン移動
+        if (e.touches.length >= 2) {
+            if (e.cancelable) e.preventDefault();
+
+            // 1本指操作を安全にキャンセル
+            if (appState.isDraggingMask) {
+                appState.isDraggingMask = false;
+                syncMaskState();
+            }
+            if (appState.isPainting) {
+                appState.isPainting = false;
+                appState.currentStroke = null;
+            }
+            gestureState.isOneFingerPan = false;
+
+            const t1 = e.touches[0];
+            const t2 = e.touches[1];
+            const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+            const center = {
+                x: (t1.clientX + t2.clientX) / 2,
+                y: (t1.clientY + t2.clientY) / 2
+            };
+
+            const container = canvas.parentElement;
+            const rect = container ? container.getBoundingClientRect() : { left: 0, top: 0 };
+            const relX = center.x - rect.left;
+            const relY = center.y - rect.top;
+            const currentScale = appState.scale || 1.0;
+
+            gestureState.isPinching = true;
+            gestureState.startDist = Math.max(10, dist);
+            gestureState.startScale = currentScale;
+            gestureState.startCenter = { ...center };
+            gestureState.initialScroll = {
+                left: container ? container.scrollLeft : 0,
+                top: container ? container.scrollTop : 0
+            };
+            gestureState.pivotImg = {
+                x: ((container ? container.scrollLeft : 0) + relX) / currentScale,
+                y: ((container ? container.scrollTop : 0) + relY) / currentScale
+            };
+            return;
+        }
+
+        // 1本指操作
+        if (e.touches.length === 1) {
+            if (gestureState.isPinching) return;
+
+            const t = e.touches[0];
+            gestureState.touch1Start = { x: t.clientX, y: t.clientY, time: Date.now() };
+            gestureState.touch1Last = { x: t.clientX, y: t.clientY };
+            gestureState.totalPanDist = 0;
+            gestureState.isOneFingerPan = false;
+
+            const coords = screenToImageCoords(e);
+            const scale = appState.scale || 1.0;
+            const threshold = 30 / scale;
+
+            // マスク境界付近: マスクドラッグ優先
+            if (Math.abs(coords.x - appState.visibleWidth) < threshold) {
+                handleCanvasMouseDown(e);
+                return;
+            }
+
+            // ペイントツール有効時: 描画優先
+            if (appState.paintColor) {
+                handleCanvasMouseDown(e);
+                return;
+            }
+
+            // キャリブレーション・株価読取モード: タップ受付
+            if (appState.isCalibrating || appState.isPriceCalibrating || (appState.priceReadMode && appState.priceCalibrated)) {
+                return;
+            }
+
+            // 通常時: 1本指スワイプ移動（パン）
+            gestureState.isOneFingerPan = true;
+        }
+    }
+
+    function handleTouchMove(e) {
+        if (!appState.image) return;
+
+        // 2本指ピンチズーム & 2本指パン移動
+        if (e.touches.length >= 2 && gestureState.isPinching) {
+            if (e.cancelable) e.preventDefault();
+
+            const t1 = e.touches[0];
+            const t2 = e.touches[1];
+            const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+            const center = {
+                x: (t1.clientX + t2.clientX) / 2,
+                y: (t1.clientY + t2.clientY) / 2
+            };
+
+            const container = canvas.parentElement;
+            const rect = container ? container.getBoundingClientRect() : { left: 0, top: 0 };
+            const relX = center.x - rect.left;
+            const relY = center.y - rect.top;
+
+            // 拡大縮小計算 (0.2〜5.0)
+            const scaleRatio = dist / gestureState.startDist;
+            let newScale = gestureState.startScale * scaleRatio;
+            newScale = Math.max(0.2, Math.min(5.0, newScale));
+            appState.scale = Math.round(newScale * 100) / 100;
+            if (zoomLevelInput) zoomLevelInput.value = Math.round(appState.scale * 100);
+
+            drawCanvas();
+
+            // ピボット位置を維持しつつ、2本指の移動をスクロールに反映
+            if (container) {
+                const panX = center.x - gestureState.startCenter.x;
+                const panY = center.y - gestureState.startCenter.y;
+                container.scrollLeft = gestureState.pivotImg.x * appState.scale - relX - panX;
+                container.scrollTop = gestureState.pivotImg.y * appState.scale - relY - panY;
+            }
+            return;
+        }
+
+        // 1本指操作
+        if (e.touches.length === 1) {
+            if (gestureState.isPinching) return;
+
+            const t = e.touches[0];
+            const dx = t.clientX - gestureState.touch1Last.x;
+            const dy = t.clientY - gestureState.touch1Last.y;
+            gestureState.touch1Last = { x: t.clientX, y: t.clientY };
+            gestureState.totalPanDist += Math.hypot(dx, dy);
+
+            // マスクドラッグ中の場合
+            if (appState.isDraggingMask) {
+                handleCanvasMouseMove(e);
+                return;
+            }
+
+            // ペイント中の場合
+            if (appState.isPainting) {
+                handleCanvasMouseMove(e);
+                return;
+            }
+
+            // 1本指スワイプ移動（パン）
+            if (gestureState.isOneFingerPan) {
+                if (e.cancelable) e.preventDefault();
+                const container = canvas.parentElement;
+                if (container) {
+                    container.scrollLeft -= dx;
+                    container.scrollTop -= dy;
+                }
+            }
+        }
+    }
+
+    function handleTouchEnd(e) {
+        if (gestureState.isPinching) {
+            if (e.touches.length === 0) {
+                gestureState.isPinching = false;
+                gestureState.ignoreClicksUntil = Date.now() + 300;
+            }
+            return;
+        }
+
+        if (appState.isDraggingMask) {
+            handleCanvasMouseUp(e);
+            return;
+        }
+
+        if (appState.isPainting) {
+            handleCanvasMouseUp(e);
+            return;
+        }
+
+        if (gestureState.isOneFingerPan) {
+            gestureState.isOneFingerPan = false;
+
+            const touch = (e.changedTouches && e.changedTouches[0]) || null;
+            if (!touch) return;
+
+            const dx = touch.clientX - gestureState.touch1Start.x;
+            const dy = touch.clientY - gestureState.touch1Start.y;
+            const dt = Date.now() - gestureState.touch1Start.time;
+
+            if (gestureState.totalPanDist > 10) {
+                gestureState.ignoreClicksUntil = Date.now() + 200;
+            }
+
+            // 素早いフリック操作のみ「めくり」を発動（ゆっくりドラッグした場合は画像移動のみ）
+            const isHorizontalFlick = dt < 350 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5 && (Math.abs(dx) / dt > 0.35);
+
+            if (isHorizontalFlick && !appState.isCalibrating && !appState.isPriceCalibrating) {
+                if (dx < 0) {
+                    // 左フリック: 次の日
+                    if (!appState.isFinished && nextBtn && !nextBtn.disabled) {
+                        handleNextDay();
+                    }
+                } else {
+                    // 右フリック: 前の日
+                    if (appState.currentStep > 0 && prevBtn && !prevBtn.disabled) {
+                        handlePrevDay();
+                    }
+                }
+            }
+        }
+    }
+
     // Canvas event handlers
     canvas.addEventListener('click', handleCanvasClick);
     canvas.addEventListener('mousemove', handleCanvasMouseMove);
@@ -506,62 +744,23 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('mouseup', handleCanvasMouseUp);
     canvas.addEventListener('mouseleave', handleCanvasMouseLeave);
 
-    // Touch support for mobile
-    canvas.addEventListener('touchstart', handleCanvasMouseDown, { passive: false });
-    canvas.addEventListener('touchmove', handleCanvasMouseMove, { passive: false });
-    window.addEventListener('touchend', handleCanvasMouseUp);
-    canvas.addEventListener('touchcancel', handleCanvasMouseLeave);
+    // Touch support for mobile (ピンチズーム & スワイプ移動)
+    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd);
+    canvas.addEventListener('touchcancel', handleTouchEnd);
 
-    // ==========================================
-    //  SWIPE GESTURE (スマホ左右スワイプ操作)
-    // ==========================================
-    let swipeStartX = 0;
-    let swipeStartY = 0;
-    let swipeStartTime = 0;
-    let swipeIsDragging = false; // マスクドラッグ中はスワイプ無効
-
-    canvas.addEventListener('touchstart', (e) => {
-        if (e.touches.length !== 1) return;
-        swipeStartX = e.touches[0].clientX;
-        swipeStartY = e.touches[0].clientY;
-        swipeStartTime = Date.now();
-        swipeIsDragging = false;
-    }, { passive: true });
-
-    canvas.addEventListener('touchmove', (e) => {
-        // マスクドラッグ中はスワイプ判定しない
-        if (appState.isDraggingMask) {
-            swipeIsDragging = true;
-        }
-    }, { passive: true });
-
-    canvas.addEventListener('touchend', (e) => {
-        if (swipeIsDragging) return; // マスクドラッグ後はスワイプ無視
-        if (!appState.image) return;
-        if (e.changedTouches.length !== 1) return;
-        if (appState.isCalibrating || appState.isPriceCalibrating) return;
-
-        const dx = e.changedTouches[0].clientX - swipeStartX;
-        const dy = e.changedTouches[0].clientY - swipeStartY;
-        const dt = Date.now() - swipeStartTime;
-
-        // 水平方向に30px以上 & 縦より横が大きく & 0.5秒以内
-        const isHorizontalSwipe = Math.abs(dx) > 30 && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < 500;
-
-        if (isHorizontalSwipe) {
-            if (dx < 0) {
-                // 左スワイプ: 次の日
-                if (!appState.isFinished && nextBtn && !nextBtn.disabled) {
-                    handleNextDay();
-                }
-            } else {
-                // 右スワイプ: 前の日
-                if (appState.currentStep > 0 && prevBtn && !prevBtn.disabled) {
-                    handlePrevDay();
-                }
+    // PCトラックパッドピンチ (Ctrl+Wheel) または Ctrl+マウスホイールでのズーム
+    if (canvas && canvas.parentElement) {
+        canvas.parentElement.addEventListener('wheel', (e) => {
+            if (!appState.image) return;
+            if (e.ctrlKey) {
+                e.preventDefault();
+                const zoomDelta = -e.deltaY * 0.005;
+                handleZoom(zoomDelta, { x: e.clientX, y: e.clientY });
             }
-        }
-    }, { passive: true });
+        }, { passive: false });
+    }
 
     // ==========================================
     //  COORDINATE HELPERS
@@ -620,6 +819,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const coords = screenToImageCoords(e);
         appState.mouseX = coords.x;
         appState.mouseY = coords.y;
+
+        // PC マウスドラッグ移動の処理
+        if (mousePanState.isPanning) {
+            const dx = e.clientX - mousePanState.startX;
+            const dy = e.clientY - mousePanState.startY;
+            if (Math.hypot(dx, dy) > 5) mousePanState.hasMoved = true;
+            const container = canvas.parentElement;
+            if (container) {
+                container.scrollLeft = mousePanState.startScrollLeft - dx;
+                container.scrollTop = mousePanState.startScrollTop - dy;
+            }
+            return;
+        }
 
         // --- Dragging Logic ---
         if (appState.isDraggingMask) {
@@ -694,6 +906,20 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // PC マウスドラッグによるパン移動（ペイントなし・マスク端なし時）
+        if (!e.touches && !appState.paintColor && !appState.isCalibrating && !appState.isPriceCalibrating && !appState.priceReadMode) {
+            const container = canvas.parentElement;
+            if (container) {
+                mousePanState.isPanning = true;
+                mousePanState.startX = e.clientX;
+                mousePanState.startY = e.clientY;
+                mousePanState.startScrollLeft = container.scrollLeft;
+                mousePanState.startScrollTop = container.scrollTop;
+                mousePanState.hasMoved = false;
+                canvas.style.cursor = 'grabbing';
+            }
+        }
+
         // Handle painting
         if (appState.paintColor) {
             const tool = appState.paintTool;
@@ -727,6 +953,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleCanvasMouseUp(e) {
+        if (mousePanState.isPanning) {
+            mousePanState.isPanning = false;
+            updateCursorStyle();
+        }
         if (appState.movingStroke) {
             appState.movingStroke = null;
             drawCanvas();
@@ -771,6 +1001,12 @@ document.addEventListener('DOMContentLoaded', () => {
     //  CANVAS CLICK ROUTER
     // ==========================================
     function handleCanvasClick(e) {
+        if (Date.now() < gestureState.ignoreClicksUntil) return;
+        if (gestureState.totalPanDist > 10) return;
+        if (mousePanState.hasMoved) {
+            mousePanState.hasMoved = false;
+            return;
+        }
         if (appState.wasDraggingMask) {
             appState.wasDraggingMask = false;
             return;
@@ -1000,23 +1236,46 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateCursorStyle() {
         if (appState.paintColor || appState.isCalibrating || appState.isPriceCalibrating || appState.priceReadMode) {
             canvas.style.cursor = appState.paintTool === 'text' ? 'text' : 'crosshair';
-            canvas.style.touchAction = 'none'; // 操作モード時はスクロールをロック
         } else {
-            canvas.style.cursor = 'default';
-            canvas.style.touchAction = 'pan-x pan-y'; // 通常時はスクロール可能
+            canvas.style.cursor = 'grab';
         }
+        canvas.style.touchAction = 'none'; // ピンチズームとスワイプ移動をJSで完全制御
     }
 
     // ==========================================
     //  ZOOM
     // ==========================================
-    function handleZoom(delta) {
+    function handleZoom(delta, originPoint = null) {
         if (!appState.image) return;
-        let newScale = appState.scale + delta;
+        const oldScale = appState.scale || 1.0;
+        let newScale = oldScale + delta;
         newScale = Math.max(0.2, Math.min(5.0, newScale));
-        appState.scale = newScale;
-        if (zoomLevelInput) zoomLevelInput.value = Math.round(newScale * 100);
+        if (Math.abs(newScale - oldScale) < 0.001) return;
+
+        const container = canvas.parentElement;
+        let pivotX, pivotY, relX, relY;
+
+        if (container) {
+            const rect = container.getBoundingClientRect();
+            if (originPoint) {
+                relX = originPoint.x - rect.left;
+                relY = originPoint.y - rect.top;
+            } else {
+                relX = container.clientWidth / 2;
+                relY = container.clientHeight / 2;
+            }
+            pivotX = (container.scrollLeft + relX) / oldScale;
+            pivotY = (container.scrollTop + relY) / oldScale;
+        }
+
+        appState.scale = Math.round(newScale * 100) / 100;
+        if (zoomLevelInput) zoomLevelInput.value = Math.round(appState.scale * 100);
         drawCanvas();
+
+        if (container && pivotX !== undefined) {
+            container.scrollLeft = pivotX * appState.scale - relX;
+            container.scrollTop = pivotY * appState.scale - relY;
+        }
     }
 
     function adjustStep(delta) {

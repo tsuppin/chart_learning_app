@@ -222,7 +222,7 @@ main {
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
     display: block;
     transition: box-shadow 0.3s ease;
-    touch-action: pan-x pan-y; /* デフォルトではスクロールを許可 */
+    touch-action: none; /* JSでピンチズームとスワイプ移動を制御 */
     -webkit-touch-callout: none;
     -webkit-user-select: none;
     user-select: none;
