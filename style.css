@@ -1743,9 +1743,9 @@ body.dark-theme .color-btn.active {
 /* 速度・送り幅・ズームの ＋／－ ボタン共通：サイズ大幅拡大 (約2倍) */
 .play-row .inline-speed .small-btn,
 .play-row .setting-group .step-control .small-btn {
-    width: 17px !important;
-    min-width: 17px !important;
-    max-width: 17px !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    max-width: 34px !important;
     height: 22px !important;
     min-height: 22px !important;
     max-height: 22px !important;
@@ -1786,6 +1786,9 @@ body.dark-theme .color-btn.active {
     background: transparent !important;
     border: none !important;
     color: var(--text-color) !important;
+    pointer-events: none !important;
+    user-select: none !important;
+    cursor: default !important;
 }
 
 

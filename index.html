@@ -83,7 +83,7 @@
                         <label for="speedValueInput" class="speed-label">速度</label>
                         <div class="speed-row-ctrl">
                             <button id="speedDecBtn" class="small-btn">−</button>
-                            <input type="number" id="speedValueInput" value="0.6" min="0.1" max="2.0" step="0.1" readonly title="自動再生間隔 (秒)">
+                            <input type="number" id="speedValueInput" value="0.6" min="0.1" max="2.0" step="0.1" readonly tabindex="-1" title="自動再生間隔 (秒)">
                             <button id="speedIncBtn" class="small-btn">+</button>
                         </div>
                     </div>
@@ -91,7 +91,7 @@
                             <label for="stepSizeInput">送り幅</label>
                             <div class="step-control">
                                 <button id="stepDec" class="small-btn">−</button>
-                                <input type="number" id="stepSizeInput" value="23" min="1" max="200">
+                                <input type="number" id="stepSizeInput" value="23" min="1" max="200" readonly tabindex="-1" title="送り幅">
                                 <button id="stepInc" class="small-btn">+</button>
                             </div>
                         </div>
@@ -100,7 +100,7 @@
                             <label for="zoomLevelInput">ズーム</label>
                             <div class="step-control">
                                 <button id="zoomOut" class="small-btn">−</button>
-                                <input type="number" id="zoomLevelInput" value="100" min="20" max="500" step="10">
+                                <input type="number" id="zoomLevelInput" value="100" min="20" max="500" step="10" readonly tabindex="-1" title="ズーム">
                                 <button id="zoomIn" class="small-btn">+</button>
                             </div>
                         </div>
