@@ -57,6 +57,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const maskResetBtn = document.getElementById('maskResetBtn');
     const maskRevealBtn = document.getElementById('maskRevealBtn');
 
+    // Inline text input elements
+    const canvasTextInputWrapper = document.getElementById('canvasTextInputWrapper');
+    const canvasTextInput = document.getElementById('canvasTextInput');
+    const canvasTextConfirmBtn = document.getElementById('canvasTextConfirmBtn');
+    const canvasTextCancelBtn = document.getElementById('canvasTextCancelBtn');
+
     // Candle width calibration
     const calibrateBtn = document.getElementById('calibrateBtn');
     const calibrateStatus = document.getElementById('calibrateStatus');
@@ -178,6 +184,129 @@ document.addEventListener('DOMContentLoaded', () => {
         drawCanvas();
     });
 
+    // === INLINE TEXT INPUT MANAGEMENT ===
+    let currentTextInputCoords = null;
+
+    function isTextInputOpen() {
+        return canvasTextInputWrapper && !canvasTextInputWrapper.classList.contains('hidden');
+    }
+
+    function openTextInput(coords, e) {
+        if (!canvasTextInputWrapper || !canvasTextInput) return;
+        currentTextInputCoords = coords;
+
+        const container = canvas.parentElement;
+        const containerRect = container.getBoundingClientRect();
+
+        let clientX = e.clientX;
+        let clientY = e.clientY;
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        }
+
+        const relX = (clientX !== undefined ? clientX : containerRect.left + 50) - containerRect.left + container.scrollLeft;
+        const relY = (clientY !== undefined ? clientY : containerRect.top + 50) - containerRect.top + container.scrollTop;
+
+        canvasTextInputWrapper.classList.remove('hidden');
+        canvasTextInput.value = '';
+
+        const boxWidth = 230;
+        const boxHeight = 36;
+        let posX = relX - 10;
+        let posY = relY - boxHeight - 8;
+
+        if (posY < container.scrollTop + 5) {
+            posY = relY + 12;
+        }
+        if (posX + boxWidth > container.scrollLeft + container.clientWidth - 10) {
+            posX = container.scrollLeft + container.clientWidth - boxWidth - 10;
+        }
+        if (posX < container.scrollLeft + 5) {
+            posX = container.scrollLeft + 5;
+        }
+
+        canvasTextInputWrapper.style.left = `${posX}px`;
+        canvasTextInputWrapper.style.top = `${posY}px`;
+
+        setTimeout(() => {
+            if (canvasTextInput) canvasTextInput.focus();
+        }, 50);
+    }
+
+    function confirmTextInput() {
+        if (!isTextInputOpen()) return;
+        const txt = canvasTextInput ? canvasTextInput.value.trim() : '';
+        if (txt && currentTextInputCoords) {
+            appState.strokes.push({
+                type: 'text',
+                color: appState.paintColor || '#ef4444',
+                text: txt,
+                points: [{ x: currentTextInputCoords.x, y: currentTextInputCoords.y }]
+            });
+            drawCanvas();
+        }
+        closeTextInput();
+        setPaintTool('pencil');
+    }
+
+    function cancelTextInput() {
+        if (!isTextInputOpen()) return;
+        closeTextInput();
+        setPaintTool('pencil');
+    }
+
+    function closeTextInput() {
+        if (!canvasTextInputWrapper) return;
+        canvasTextInputWrapper.classList.add('hidden');
+        if (canvasTextInput) canvasTextInput.value = '';
+        currentTextInputCoords = null;
+    }
+
+    function setPaintTool(tool) {
+        appState.paintTool = tool;
+        toolBtns.forEach(b => {
+            if (b.dataset.tool !== 'fill') {
+                const isActive = b.dataset.tool === tool;
+                b.classList.toggle('active', isActive);
+                b.setAttribute('aria-pressed', String(isActive));
+            }
+        });
+        updateCursorStyle();
+    }
+
+    if (canvasTextInputWrapper) {
+        canvasTextInputWrapper.addEventListener('click', (e) => e.stopPropagation());
+        canvasTextInputWrapper.addEventListener('mousedown', (e) => e.stopPropagation());
+        canvasTextInputWrapper.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+    }
+    if (canvasTextConfirmBtn) {
+        canvasTextConfirmBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            confirmTextInput();
+        });
+    }
+    if (canvasTextCancelBtn) {
+        canvasTextCancelBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            cancelTextInput();
+        });
+    }
+    if (canvasTextInput) {
+        canvasTextInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                confirmTextInput();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelTextInput();
+            }
+        });
+    }
+
     // === PAINT EVENT LISTENERS ===
     const colorBtns = document.querySelectorAll('.color-btn');
     colorBtns.forEach(btn => {
@@ -187,6 +316,10 @@ document.addEventListener('DOMContentLoaded', () => {
             colorBtns.forEach(b => b.classList.remove('active'));
             if (wasActive) {
                 appState.paintColor = null; // 再クリックでペイントオフ
+                closeTextInput();
+                if (appState.paintTool === 'text') {
+                    setPaintTool('pencil');
+                }
             } else {
                 target.classList.add('active');
                 appState.paintColor = target.dataset.color || null;
@@ -205,13 +338,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.setAttribute('aria-pressed', String(appState.paintFill));
                 return;
             }
-            appState.paintTool = tool;
-            toolBtns.forEach(b => {
-                if (b.dataset.tool !== 'fill') {
-                    b.classList.toggle('active', b === btn);
-                    b.setAttribute('aria-pressed', String(b === btn));
+
+            // すでに文字ツールが選択されている状態で文字ボタンを再クリックした場合は解除して鉛筆に戻す
+            if (appState.paintTool === 'text' && tool === 'text') {
+                closeTextInput();
+                setPaintTool('pencil');
+                return;
+            }
+
+            if (isTextInputOpen()) {
+                closeTextInput();
+            }
+
+            // 文字ツール選択時に色が未選択なら、自動で最初の色（赤）を有効化
+            if (tool === 'text' && !appState.paintColor) {
+                const redBtn = document.querySelector('.color-btn[data-color="#ef4444"]');
+                if (redBtn) {
+                    colorBtns.forEach(b => b.classList.remove('active'));
+                    redBtn.classList.add('active');
+                    appState.paintColor = '#ef4444';
                 }
-            });
+            }
+
+            setPaintTool(tool);
         });
     });
     const clearPaintBtn = document.getElementById('clearPaintBtn');
@@ -337,8 +486,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         if (e.key === 'Escape') {
+            if (isTextInputOpen()) cancelTextInput();
+            else if (appState.paintTool === 'text') setPaintTool('pencil');
             if (appState.isCalibrating) cancelCandleCalibration();
             if (appState.isPriceCalibrating) cancelPriceCalibration();
+            if (appState.autoPlayInterval) stopAutoPlay();
+            if (appState.autoRewindInterval) stopAutoRewind();
         }
     });
 
@@ -534,6 +687,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Start dragging if close to the edge
         if (Math.abs(coords.x - appState.visibleWidth) < threshold) {
+            if (isTextInputOpen()) closeTextInput();
             appState.isDraggingMask = true;
             canvas.style.cursor = 'ew-resize';
             if (e.cancelable) e.preventDefault(); // Prevent text selection
@@ -545,12 +699,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const tool = appState.paintTool;
             if (e.cancelable) e.preventDefault();
             if (tool === 'text') {
-                const txt = window.prompt('テキストを入力');
-                if (txt) {
-                    appState.strokes.push({ type: 'text', color: appState.paintColor, text: txt, points: [{ x: coords.x, y: coords.y }] });
-                    drawCanvas();
+                if (isTextInputOpen()) {
+                    cancelTextInput();
+                    return;
                 }
+                openTextInput(coords, e);
                 return;
+            }
+            if (isTextInputOpen()) {
+                closeTextInput();
             }
             if (tool === 'move') {
                 const hit = findStrokeAt(coords.x, coords.y, 12 / scale);
@@ -564,6 +721,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 color: appState.paintColor,
                 points: [{ x: coords.x, y: coords.y }]
             };
+        } else if (isTextInputOpen()) {
+            closeTextInput();
         }
     }
 
@@ -840,7 +999,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateCursorStyle() {
         if (appState.paintColor || appState.isCalibrating || appState.isPriceCalibrating || appState.priceReadMode) {
-            canvas.style.cursor = 'crosshair';
+            canvas.style.cursor = appState.paintTool === 'text' ? 'text' : 'crosshair';
             canvas.style.touchAction = 'none'; // 操作モード時はスクロールをロック
         } else {
             canvas.style.cursor = 'default';
@@ -960,6 +1119,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initGame(img, keepAutoPlay = false) {
         cancelSlideAnimation();
+        closeTextInput();
         appState.image = img;
         appState.totalWidth = img.width;
         appState.height = img.height;
@@ -1692,6 +1852,7 @@ document.addEventListener('DOMContentLoaded', () => {
     //  GAME LOGIC
     // ==========================================
     function handleNextDay() {
+        closeTextInput();
         if (appState.image && (appState.isFinished || appState.visibleWidth >= appState.totalWidth)) {
             // すでに全表示なら、次の画像を読み込んで停止（自動再生はしない）
             goToNextImageInAutoPlay(false);
@@ -1740,6 +1901,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handlePrevDay() {
+        closeTextInput();
         const minVisible = appState.stepSize * 2;
         if (appState.visibleWidth <= minVisible) return;
 
