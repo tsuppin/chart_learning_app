@@ -107,22 +107,28 @@
                 </div>
                 <div class="input-group paint-group">
                     <div class="color-palette tool-palette" id="colorPalette">
-                        <button type="button" class="tool-btn active" data-tool="pencil" title="鉛筆" aria-label="鉛筆" aria-pressed="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
-                        <button type="button" class="tool-btn" data-tool="line" title="線" aria-label="線" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><rect x="5" y="11" width="14" height="2"/></svg></button>
-                        <button type="button" class="tool-btn" data-tool="rect" title="四角" aria-label="四角" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M5 5h14v14H5V5zm2 2v10h10V7H7z"/></svg></button>
-                        <button type="button" class="tool-btn" data-tool="circle" title="丸" aria-label="丸" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/></svg></button>
-                        <button type="button" class="tool-btn" data-tool="fill" title="塗りつぶし (オンで図形を塗る)" aria-label="塗りつぶし (オンで図形を塗る)" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15a1.5 1.5 0 0 0 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10L10 5.21 14.79 10H5.21zM19 11.5s-2 2.17-2 3.5a2 2 0 0 0 4 0c0-1.33-2-3.5-2-3.5zM2 20h20v4H2z" transform="scale(.9) translate(1,1)"/></svg></button>
-                        <button type="button" class="tool-btn" data-tool="text" title="文字" aria-label="文字" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M9.93 13.5h4.14L12 7.98 9.93 13.5zM13 5h-2L5.5 19h2.1l1.12-3h6.55l1.12 3h2.1L13 5z"/></svg></button>
-                        <button type="button" class="tool-btn" data-tool="move" title="移動" aria-label="移動" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg></button>
-                        <button class="color-btn bg-red" data-color="#ef4444" title="赤" aria-label="赤色"></button>
-                        <button class="color-btn bg-green" data-color="#22c55e" title="緑" aria-label="緑色"></button>
-                        <button class="color-btn bg-blue" data-color="#3b82f6" title="青" aria-label="青色"></button>
-                        <button class="color-btn bg-purple" data-color="#a855f7" title="紫" aria-label="紫色"></button>
-                        <button class="color-btn bg-orange" data-color="#f97316" title="オレンジ" aria-label="オレンジ色"></button>
-                        <button class="color-btn bg-yellow" data-color="#eab308" title="黄" aria-label="黄色"></button>
-                        <button class="color-btn bg-white" data-color="#ffffff" title="白" aria-label="白色"></button>
-                        <button class="color-btn bg-black border-btn-dark" data-color="#000000" title="黒" aria-label="黒色"></button>
-                        <button id="clearPaintBtn" type="button" class="clear-icon-btn" title="ペイントを消去" aria-label="ペイントを消去">🗑️</button>
+                        <div class="palette-row palette-tools-row">
+                            <button type="button" class="tool-btn active" data-tool="pencil" title="鉛筆" aria-label="鉛筆" aria-pressed="true"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zM20.7 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+                            <button type="button" class="tool-btn" data-tool="line" title="線" aria-label="線" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><rect x="5" y="11" width="14" height="2"/></svg></button>
+                            <button type="button" class="tool-btn" data-tool="rect" title="四角" aria-label="四角" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M5 5h14v14H5V5zm2 2v10h10V7H7z"/></svg></button>
+                            <button type="button" class="tool-btn" data-tool="circle" title="丸" aria-label="丸" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/></svg></button>
+                            <button type="button" class="tool-btn" data-tool="fill" title="塗りつぶし (オンで図形を塗る)" aria-label="塗りつぶし (オンで図形を塗る)" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M16.56 8.94L7.62 0 6.21 1.41l2.38 2.38-5.15 5.15a1.5 1.5 0 0 0 0 2.12l5.5 5.5c.29.29.68.44 1.06.44s.77-.15 1.06-.44l5.5-5.5c.59-.58.59-1.53 0-2.12zM5.21 10L10 5.21 14.79 10H5.21zM19 11.5s-2 2.17-2 3.5a2 2 0 0 0 4 0c0-1.33-2-3.5-2-3.5zM2 20h20v4H2z" transform="scale(.9) translate(1,1)"/></svg></button>
+                            <button type="button" class="tool-btn" data-tool="text" title="文字" aria-label="文字" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M9.93 13.5h4.14L12 7.98 9.93 13.5zM13 5h-2L5.5 19h2.1l1.12-3h6.55l1.12 3h2.1L13 5z"/></svg></button>
+                            <button type="button" class="tool-btn" data-tool="move" title="移動" aria-label="移動" aria-pressed="false"><svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M10 9h4V6h3l-5-5-5 5h3v3zm-1 1H6V7l-5 5 5 5v-3h3v-4zm14 2l-5-5v3h-3v4h3v3l5-5zm-9 3h-4v3H7l5 5 5-5h-3v-3z"/></svg></button>
+                            <button id="strokeWidthBtn" type="button" class="stroke-width-btn" title="線の太さ: 細" aria-label="線の太さ切替">細</button>
+                            <button id="undoPaintBtn" type="button" class="undo-icon-btn" title="1つ戻す (Ctrl+Z)" aria-label="1つ戻す">↩</button>
+                            <button id="clearPaintBtn" type="button" class="clear-icon-btn" title="ペイントを消去" aria-label="ペイントを消去">🗑️</button>
+                        </div>
+                        <div class="palette-row palette-colors-row">
+                            <button class="color-btn bg-red" data-color="#ef4444" title="赤" aria-label="赤色"></button>
+                            <button class="color-btn bg-green" data-color="#22c55e" title="緑" aria-label="緑色"></button>
+                            <button class="color-btn bg-blue" data-color="#3b82f6" title="青" aria-label="青色"></button>
+                            <button class="color-btn bg-purple" data-color="#a855f7" title="紫" aria-label="紫色"></button>
+                            <button class="color-btn bg-orange" data-color="#f97316" title="オレンジ" aria-label="オレンジ色"></button>
+                            <button class="color-btn bg-yellow" data-color="#eab308" title="黄" aria-label="黄色"></button>
+                            <button class="color-btn bg-white" data-color="#ffffff" title="白" aria-label="白色"></button>
+                            <button class="color-btn bg-black border-btn-dark" data-color="#000000" title="黒" aria-label="黒色"></button>
+                        </div>
                     </div>
                 </div>
 

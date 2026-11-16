@@ -1848,3 +1848,72 @@ body.dark-theme .color-btn.active {
 .canvas-text-btn.cancel-btn:hover {
     background: #6b7280;
 }
+
+/* ペイントツールバー 2行レイアウト（ツール＋太さ＋戻す＋消去 / 8色） */
+.paint-group .tool-palette {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 3px;
+}
+.palette-row {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    width: 100%;
+}
+.palette-tools-row .tool-btn,
+.palette-tools-row .stroke-width-btn,
+.palette-tools-row .undo-icon-btn,
+.palette-tools-row .clear-icon-btn {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
+    height: 24px !important;
+    min-height: 24px !important;
+    max-height: 24px !important;
+    padding: 0 !important;
+    border-radius: 5px !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+.palette-tools-row .stroke-width-btn,
+.palette-tools-row .undo-icon-btn {
+    background: #2a2a33;
+    background-image: none;
+    color: #e5e7eb;
+    border: 1px solid #3a3a45;
+    box-shadow: none;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+}
+.palette-tools-row .stroke-width-btn:hover,
+.palette-tools-row .undo-icon-btn:hover {
+    background: #3a3a48;
+}
+.palette-tools-row .clear-icon-btn {
+    font-size: 0.72rem;
+    border-radius: 5px !important;
+}
+.palette-colors-row .color-btn {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    max-height: 22px !important;
+    border-radius: 11px !important;
+    aspect-ratio: auto !important;
+}
+
+/* キャンバス領域: 画像表示時の上端見切れ防止 & 下端描画スペース確保 */
+.canvas-container {
+    overscroll-behavior: contain;
+}
+.canvas-container.has-image {
+    justify-content: flex-start;
+    align-items: flex-start;
+    padding: 0.5rem 0.5rem 2.5rem 0.5rem;
+}

@@ -124,6 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadToken: 0,
         paintTool: 'pencil',
         paintFill: false,
+        paintWidth: 2,
         movingStroke: null,
         currentStroke: null,
         isPainting: false,
@@ -241,9 +242,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isTextInputOpen()) return;
         const txt = canvasTextInput ? canvasTextInput.value.trim() : '';
         if (txt && currentTextInputCoords) {
+            const fontSizeMap = { 2: 18, 4: 24, 7: 32 };
             appState.strokes.push({
                 type: 'text',
                 color: appState.paintColor || '#ef4444',
+                fontSize: fontSizeMap[appState.paintWidth] || 20,
                 text: txt,
                 points: [{ x: currentTextInputCoords.x, y: currentTextInputCoords.y }]
             });
@@ -363,6 +366,31 @@ document.addEventListener('DOMContentLoaded', () => {
             setPaintTool(tool);
         });
     });
+    const strokeWidthBtn = document.getElementById('strokeWidthBtn');
+    if (strokeWidthBtn) {
+        const widthSteps = [
+            { width: 2, label: '細', title: '線の太さ: 細' },
+            { width: 4, label: '中', title: '線の太さ: 中' },
+            { width: 7, label: '太', title: '線の太さ: 太' }
+        ];
+        let widthIdx = 0;
+        strokeWidthBtn.addEventListener('click', () => {
+            widthIdx = (widthIdx + 1) % widthSteps.length;
+            const cur = widthSteps[widthIdx];
+            appState.paintWidth = cur.width;
+            strokeWidthBtn.textContent = cur.label;
+            strokeWidthBtn.title = cur.title;
+        });
+    }
+    const undoPaintBtn = document.getElementById('undoPaintBtn');
+    if (undoPaintBtn) {
+        undoPaintBtn.addEventListener('click', () => {
+            if (appState.strokes.length) {
+                appState.strokes.pop();
+                drawCanvas();
+            }
+        });
+    }
     const clearPaintBtn = document.getElementById('clearPaintBtn');
     if (clearPaintBtn) {
         clearPaintBtn.addEventListener('click', () => {
@@ -556,9 +584,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const container = canvas.parentElement;
-            const rect = container ? container.getBoundingClientRect() : { left: 0, top: 0 };
-            const relX = center.x - rect.left;
-            const relY = center.y - rect.top;
+            const canvasRect = canvas.getBoundingClientRect();
             const currentScale = appState.scale || 1.0;
 
             gestureState.isPinching = true;
@@ -570,8 +596,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 top: container ? container.scrollTop : 0
             };
             gestureState.pivotImg = {
-                x: ((container ? container.scrollLeft : 0) + relX) / currentScale,
-                y: ((container ? container.scrollTop : 0) + relY) / currentScale
+                x: (center.x - canvasRect.left) * (appState.image.width / canvasRect.width),
+                y: (center.y - canvasRect.top) * (appState.image.height / canvasRect.height)
             };
             return;
         }
@@ -590,14 +616,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const scale = appState.scale || 1.0;
             const threshold = 30 / scale;
 
-            // マスク境界付近: マスクドラッグ優先
-            if (Math.abs(coords.x - appState.visibleWidth) < threshold) {
+            // ペイントツール有効時は描画を最優先（緑ライン付近でもマスクに吸われない）
+            if (appState.paintColor) {
                 handleCanvasMouseDown(e);
                 return;
             }
 
-            // ペイントツール有効時: 描画優先
-            if (appState.paintColor) {
+            // マスク境界付近: マスクドラッグ優先
+            if (Math.abs(coords.x - appState.visibleWidth) < threshold) {
                 handleCanvasMouseDown(e);
                 return;
             }
@@ -628,9 +654,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             const container = canvas.parentElement;
-            const rect = container ? container.getBoundingClientRect() : { left: 0, top: 0 };
-            const relX = center.x - rect.left;
-            const relY = center.y - rect.top;
 
             // 拡大縮小計算 (0.2〜5.0)
             const scaleRatio = dist / gestureState.startDist;
@@ -643,10 +666,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // ピボット位置を維持しつつ、2本指の移動をスクロールに反映
             if (container) {
-                const panX = center.x - gestureState.startCenter.x;
-                const panY = center.y - gestureState.startCenter.y;
-                container.scrollLeft = gestureState.pivotImg.x * appState.scale - relX - panX;
-                container.scrollTop = gestureState.pivotImg.y * appState.scale - relY - panY;
+                const newRect = canvas.getBoundingClientRect();
+                const currentPivotScreenX = newRect.left + gestureState.pivotImg.x * (newRect.width / appState.image.width);
+                const currentPivotScreenY = newRect.top + gestureState.pivotImg.y * (newRect.height / appState.image.height);
+                container.scrollLeft += currentPivotScreenX - center.x;
+                container.scrollTop += currentPivotScreenY - center.y;
             }
             return;
         }
@@ -777,8 +801,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
+        if (appState.image && rect.width > 0 && rect.height > 0) {
+            const imgX = (clientX - rect.left) * (appState.image.width / rect.width);
+            const imgY = (clientY - rect.top) * (appState.image.height / rect.height);
+            return { x: imgX, y: imgY };
+        }
+        const scaleX = canvas.width / (rect.width || 1);
+        const scaleY = canvas.height / (rect.height || 1);
         const imgX = (clientX - rect.left) * scaleX / (appState.scale || 1.0);
         const imgY = (clientY - rect.top) * scaleY / (appState.scale || 1.0);
         return { x: imgX, y: imgY };
@@ -867,7 +896,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.cancelable) e.preventDefault();
             const cs = appState.currentStroke;
             if (cs.type === 'pen') {
-                cs.points.push({ x: coords.x, y: coords.y });
+                const lastPt = cs.points[cs.points.length - 1];
+                const minDist = 0.5 / (appState.scale || 1.0);
+                if (!lastPt || Math.hypot(coords.x - lastPt.x, coords.y - lastPt.y) >= minDist) {
+                    cs.points.push({ x: coords.x, y: coords.y });
+                }
             } else {
                 cs.points[1] = { x: coords.x, y: coords.y };
             }
@@ -875,8 +908,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return; // skip other hover logic while drawing
         }
 
-        // If mouse is near the edge of the mask
-        if (Math.abs(coords.x - appState.visibleWidth) < threshold) {
+        // If mouse is near the edge of the mask (ペイント中は描画優先のため切り替えない)
+        if (!appState.paintColor && Math.abs(coords.x - appState.visibleWidth) < threshold) {
             canvas.style.cursor = 'ew-resize';
         } else {
             // Revert to default or crosshair
@@ -897,8 +930,24 @@ document.addEventListener('DOMContentLoaded', () => {
         // 閾値を少し大きくしてタッチしやすくする
         const threshold = (e.touches ? 30 : 15) / scale;
 
-        // Start dragging if close to the edge
-        if (Math.abs(coords.x - appState.visibleWidth) < threshold) {
+        // PC 右クリック・中ボタンドラッグでパン移動（ペイント中でも色解除せずに移動可能）
+        if (!e.touches && (e.button === 1 || e.button === 2)) {
+            const container = canvas.parentElement;
+            if (container) {
+                if (e.cancelable) e.preventDefault();
+                mousePanState.isPanning = true;
+                mousePanState.startX = e.clientX;
+                mousePanState.startY = e.clientY;
+                mousePanState.startScrollLeft = container.scrollLeft;
+                mousePanState.startScrollTop = container.scrollTop;
+                mousePanState.hasMoved = false;
+                canvas.style.cursor = 'grabbing';
+            }
+            return;
+        }
+
+        // Start dragging if close to the edge (ペイント中はマスクより描画を優先)
+        if (!appState.paintColor && Math.abs(coords.x - appState.visibleWidth) < threshold) {
             if (isTextInputOpen()) closeTextInput();
             appState.isDraggingMask = true;
             canvas.style.cursor = 'ew-resize';
@@ -945,6 +994,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 type: tool === 'pencil' ? 'pen' : tool,
                 fill: appState.paintFill,
                 color: appState.paintColor,
+                lineWidth: appState.paintWidth || 2,
                 points: [{ x: coords.x, y: coords.y }]
             };
         } else if (isTextInputOpen()) {
@@ -1253,28 +1303,34 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Math.abs(newScale - oldScale) < 0.001) return;
 
         const container = canvas.parentElement;
-        let pivotX, pivotY, relX, relY;
+        let pivotImgX, pivotImgY, originScreenX, originScreenY;
 
         if (container) {
-            const rect = container.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
             if (originPoint) {
-                relX = originPoint.x - rect.left;
-                relY = originPoint.y - rect.top;
+                originScreenX = originPoint.x;
+                originScreenY = originPoint.y;
             } else {
-                relX = container.clientWidth / 2;
-                relY = container.clientHeight / 2;
+                originScreenX = containerRect.left + container.clientWidth / 2;
+                originScreenY = containerRect.top + container.clientHeight / 2;
             }
-            pivotX = (container.scrollLeft + relX) / oldScale;
-            pivotY = (container.scrollTop + relY) / oldScale;
+            if (canvasRect.width > 0 && canvasRect.height > 0) {
+                pivotImgX = (originScreenX - canvasRect.left) * (appState.image.width / canvasRect.width);
+                pivotImgY = (originScreenY - canvasRect.top) * (appState.image.height / canvasRect.height);
+            }
         }
 
         appState.scale = Math.round(newScale * 100) / 100;
         if (zoomLevelInput) zoomLevelInput.value = Math.round(appState.scale * 100);
         drawCanvas();
 
-        if (container && pivotX !== undefined) {
-            container.scrollLeft = pivotX * appState.scale - relX;
-            container.scrollTop = pivotY * appState.scale - relY;
+        if (container && pivotImgX !== undefined) {
+            const newRect = canvas.getBoundingClientRect();
+            const currentPivotScreenX = newRect.left + pivotImgX * (newRect.width / appState.image.width);
+            const currentPivotScreenY = newRect.top + pivotImgY * (newRect.height / appState.image.height);
+            container.scrollLeft += currentPivotScreenX - originScreenX;
+            container.scrollTop += currentPivotScreenY - originScreenY;
         }
     }
 
@@ -1753,8 +1809,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!appState.image) return;
 
         const scale = appState.scale || 1.0;
-        const targetWidth = Math.round(appState.image.width * scale);
-        const targetHeight = Math.round(appState.image.height * scale);
+        const dpr = Math.min(window.devicePixelRatio || 1, 3);
+        const cssWidth = Math.round(appState.image.width * scale);
+        const cssHeight = Math.round(appState.image.height * scale);
+        const targetWidth = Math.round(cssWidth * dpr);
+        const targetHeight = Math.round(cssHeight * dpr);
 
         let resized = false;
         if (canvas.width !== targetWidth) {
@@ -1765,13 +1824,15 @@ document.addEventListener('DOMContentLoaded', () => {
             canvas.height = targetHeight;
             resized = true;
         }
+        canvas.style.width = `${cssWidth}px`;
+        canvas.style.height = `${cssHeight}px`;
 
         if (!resized) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
 
         ctx.save();
-        ctx.scale(scale, scale);
+        ctx.scale(scale * dpr, scale * dpr);
 
         ctx.drawImage(appState.image, 0, 0);
 
@@ -1892,10 +1953,11 @@ document.addEventListener('DOMContentLoaded', () => {
         allStrokes.forEach(stroke => {
             if (!stroke.points || stroke.points.length === 0) return;
             const type = stroke.type || 'pen';
-            const lw = stroke.color === '#ffffff' ? 8 : 4;
+            const lw = stroke.lineWidth || (stroke.color === '#ffffff' ? 6 : 2);
 
             if (type === 'text') {
-                ctx.font = 'bold 24px "Noto Sans JP", sans-serif';
+                const fs = stroke.fontSize || 20;
+                ctx.font = `bold ${fs}px "Noto Sans JP", sans-serif`;
                 ctx.textBaseline = 'top';
                 ctx.fillStyle = stroke.color;
                 ctx.fillText(stroke.text, stroke.points[0].x, stroke.points[0].y);
@@ -1904,17 +1966,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
             ctx.beginPath();
             if (type === 'pen') {
-                if (stroke.points.length === 1) {
+                const pts = stroke.points;
+                if (pts.length === 1) {
                     ctx.fillStyle = stroke.color;
-                    ctx.arc(stroke.points[0].x, stroke.points[0].y, 2, 0, Math.PI * 2);
+                    ctx.arc(pts[0].x, pts[0].y, lw / 2, 0, Math.PI * 2);
                     ctx.fill();
                     return;
                 }
                 ctx.strokeStyle = stroke.color;
                 ctx.lineWidth = lw;
-                ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-                for (let i = 1; i < stroke.points.length; i++) {
-                    ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+                ctx.moveTo(pts[0].x, pts[0].y);
+                if (pts.length === 2) {
+                    ctx.lineTo(pts[1].x, pts[1].y);
+                } else {
+                    for (let i = 1; i < pts.length - 1; i++) {
+                        const midX = (pts[i].x + pts[i + 1].x) / 2;
+                        const midY = (pts[i].y + pts[i + 1].y) / 2;
+                        ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+                    }
+                    const last = pts[pts.length - 1];
+                    ctx.lineTo(last.x, last.y);
                 }
                 ctx.stroke();
                 return;
@@ -1957,9 +2028,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!pts || !pts.length) continue;
             const type = s.type || 'pen';
             if (type === 'text') {
-                ctx.font = 'bold 24px "Noto Sans JP", sans-serif';
+                const fs = s.fontSize || 20;
+                ctx.font = `bold ${fs}px "Noto Sans JP", sans-serif`;
                 const w = ctx.measureText(s.text).width;
-                if (x >= pts[0].x - tol && x <= pts[0].x + w + tol && y >= pts[0].y - tol && y <= pts[0].y + 28 + tol) return s;
+                if (x >= pts[0].x - tol && x <= pts[0].x + w + tol && y >= pts[0].y - tol && y <= pts[0].y + fs + 4 + tol) return s;
             } else if (type === 'rect' || type === 'circle') {
                 if (pts.length < 2) continue;
                 const minX = Math.min(pts[0].x, pts[1].x) - tol, maxX = Math.max(pts[0].x, pts[1].x) + tol;
