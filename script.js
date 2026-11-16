@@ -2597,14 +2597,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? entry.xPos
                 : (initialVisible + (index * appState.stepSize));
 
-            const isLightTheme = document.body.classList.contains('light-theme');
-            ctx.strokeStyle = isLightTheme ? "rgba(0, 0, 0, 0.3)" : "rgba(255, 255, 255, 0.3)";
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(xPos, 0);
-            ctx.lineTo(xPos, appState.height);
-            ctx.stroke();
-
             const feedback = verifyConsistency(entry, index > 0 ? appState.history[index - 1] : null);
             const prev = index > 0 ? appState.history[index - 1] : { sell: 0, buy: 0 };
 
@@ -2646,6 +2638,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+
+        drawPaintStrokes();
     }
 
     function verifyConsistency(current, prev) {
