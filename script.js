@@ -14,10 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const autoRewindBtn = document.getElementById('autoRewindBtn');
     const messageEl = document.getElementById('overlay-message');
 
-    // Make overlay message clickable (use imageInput so mobile devices work too)
-    if (messageEl && (imageInput || fileInput)) {
+    // Make overlay message clickable
+    if (messageEl && (fileInput || imageInput)) {
         messageEl.addEventListener('click', () => {
-            (imageInput || fileInput).click();
+            (fileInput || imageInput).click();
         });
     }
 
@@ -159,13 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     if (fileInput) {
         fileInput.addEventListener('change', handleFolderUpload);
-        // Android 等 webkitdirectory 非対応端末では複数画像選択に自動フォールバック
-        const isMobileNoFolder = /Android/i.test(navigator.userAgent) || !('webkitdirectory' in document.createElement('input'));
-        if (isMobileNoFolder) {
-            fileInput.removeAttribute('webkitdirectory');
-            fileInput.setAttribute('multiple', '');
-            fileInput.setAttribute('accept', 'image/*');
-        }
     }
     // Disable context menu on canvas to avoid interference with clicks/touches
     if (canvas) {
