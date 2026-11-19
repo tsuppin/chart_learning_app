@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
         history: [],
         isFinished: false,
         scale: 1.0,
+        isAutoFit: true,
 
         // PL State
         avgSellPrice: 0,  // 売りの平均建値
@@ -158,12 +159,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     if (fileInput) {
         fileInput.addEventListener('change', handleFolderUpload);
-        // Android/Mobile Chrome doesn't support webkitdirectory
-        fileInput.addEventListener('click', (e) => {
-            if (!('webkitdirectory' in document.createElement('input')) || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-                console.log("Folder upload might not be supported on this device. Using single/multiple image selection fallback.");
-            }
-        });
+        // Android 等 webkitdirectory 非対応端末では複数画像選択に自動フォールバック
+        const isMobileNoFolder = /Android/i.test(navigator.userAgent) || !('webkitdirectory' in document.createElement('input'));
+        if (isMobileNoFolder) {
+            fileInput.removeAttribute('webkitdirectory');
+            fileInput.setAttribute('multiple', '');
+            fileInput.setAttribute('accept', 'image/*');
+        }
     }
     // Disable context menu on canvas to avoid interference with clicks/touches
     if (canvas) {
@@ -478,12 +480,63 @@ document.addEventListener('DOMContentLoaded', () => {
         zoomLevelInput.addEventListener('change', (e) => {
             let val = parseInt(e.target.value);
             if (isNaN(val)) val = Math.round((appState.scale || 1.0) * 100);
-            val = Math.max(20, Math.min(500, val));
+            const minVal = Math.max(5, Math.floor(computeFitScale() * 100));
+            val = Math.max(minVal, Math.min(500, val));
             e.target.value = val;
             appState.scale = val / 100;
+            appState.isAutoFit = Math.abs(appState.scale - computeFitScale()) < 0.005;
             if (appState.image) drawCanvas();
         });
     }
+
+    // 長押し連続調整 (スマホ・タブレット・PCでの + / - ボタン操作をスムーズにする)
+    function bindHoldRepeat(btn, actionFn) {
+        if (!btn) return;
+        let delayTimer = null;
+        let repeatTimer = null;
+        let didRepeat = false;
+
+        const clearTimers = () => {
+            if (delayTimer) { clearTimeout(delayTimer); delayTimer = null; }
+            if (repeatTimer) { clearInterval(repeatTimer); repeatTimer = null; }
+        };
+
+        const startHold = (e) => {
+            if (btn.disabled) return;
+            if (e.type === 'mousedown' && e.button !== 0) return;
+            clearTimers();
+            didRepeat = false;
+            delayTimer = setTimeout(() => {
+                didRepeat = true;
+                actionFn();
+                repeatTimer = setInterval(() => {
+                    if (btn.disabled) { clearTimers(); return; }
+                    actionFn();
+                }, 80);
+            }, 380);
+        };
+
+        btn.addEventListener('touchstart', startHold, { passive: true });
+        btn.addEventListener('touchend', clearTimers);
+        btn.addEventListener('touchcancel', clearTimers);
+        btn.addEventListener('mousedown', startHold);
+        btn.addEventListener('mouseup', clearTimers);
+        btn.addEventListener('mouseleave', clearTimers);
+        btn.addEventListener('click', (e) => {
+            if (didRepeat) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                didRepeat = false;
+            }
+        }, true);
+    }
+
+    bindHoldRepeat(stepDecBtn, () => adjustStep(-1));
+    bindHoldRepeat(stepIncBtn, () => adjustStep(1));
+    bindHoldRepeat(zoomOutBtn, () => handleZoom(-0.1));
+    bindHoldRepeat(zoomInBtn, () => handleZoom(0.1));
+    bindHoldRepeat(speedDecBtn, () => adjustSpeed(0.1));
+    bindHoldRepeat(speedIncBtn, () => adjustSpeed(-0.1));
 
     // Image navigation buttons
     if (prevImageBtn) prevImageBtn.addEventListener('click', () => navigateImage(-1));
@@ -523,9 +576,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    window.addEventListener('resize', () => {
-        if (appState.image) drawCanvas();
+    function handleViewportResize() {
+        if (!appState.image) return;
+        if (isTextInputOpen()) return;
+        if (appState.isAutoFit) {
+            appState.scale = computeFitScale(appState.image);
+            if (zoomLevelInput) zoomLevelInput.value = Math.round(appState.scale * 100);
+        }
+        requestDrawCanvas();
+    }
+
+    window.addEventListener('resize', handleViewportResize);
+    window.addEventListener('orientationchange', () => {
+        setTimeout(handleViewportResize, 100);
     });
+    if (typeof ResizeObserver !== 'undefined' && canvas && canvas.parentElement) {
+        let lastObsW = 0;
+        let lastObsH = 0;
+        const ro = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const w = Math.round(entry.contentRect.width);
+                const h = Math.round(entry.contentRect.height);
+                if (w !== lastObsW || h !== lastObsH) {
+                    lastObsW = w;
+                    lastObsH = h;
+                    handleViewportResize();
+                }
+            }
+        });
+        ro.observe(canvas.parentElement);
+    }
 
     // ==========================================
     //  GESTURE STATE & TOUCH / MOUSE CONTROLS
@@ -573,6 +653,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 appState.isPainting = false;
                 appState.currentStroke = null;
             }
+            if (appState.movingStroke) {
+                appState.movingStroke = null;
+            }
             gestureState.isOneFingerPan = false;
 
             const t1 = e.touches[0];
@@ -616,14 +699,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const scale = appState.scale || 1.0;
             const threshold = 30 / scale;
 
-            // ペイントツール有効時は描画を最優先（緑ライン付近でもマスクに吸われない）
-            if (appState.paintColor) {
+            // ペイントツール有効時（または移動ツール使用時）は描画・図形移動を最優先（緑ライン付近でもマスクに吸われない）
+            if (appState.paintColor || (appState.paintTool === 'move' && appState.strokes.length > 0)) {
                 handleCanvasMouseDown(e);
                 return;
             }
 
-            // マスク境界付近: マスクドラッグ優先
-            if (Math.abs(coords.x - appState.visibleWidth) < threshold) {
+            if (isTextInputOpen()) {
+                closeTextInput();
+            }
+
+            // マスク境界付近: マスクドラッグ優先（未完了時のみ）
+            if (!appState.isFinished && Math.abs(coords.x - appState.visibleWidth) < threshold) {
                 handleCanvasMouseDown(e);
                 return;
             }
@@ -655,11 +742,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const container = canvas.parentElement;
 
-            // 拡大縮小計算 (0.2〜5.0)
+            // 拡大縮小計算 (画面フィット倍率〜5.0)
+            const fitScale = computeFitScale(appState.image);
+            const minScale = Math.min(0.2, fitScale);
             const scaleRatio = dist / gestureState.startDist;
             let newScale = gestureState.startScale * scaleRatio;
-            newScale = Math.max(0.2, Math.min(5.0, newScale));
-            appState.scale = Math.round(newScale * 100) / 100;
+            // ピンチアウト時は画像全体が収まる fitScale でピタッと止まるようにする
+            if (gestureState.startScale >= fitScale - 0.005) {
+                newScale = Math.max(fitScale, Math.min(5.0, newScale));
+            } else {
+                newScale = Math.max(minScale, Math.min(5.0, newScale));
+            }
+            appState.scale = newScale;
+            appState.isAutoFit = Math.abs(newScale - fitScale) < 0.005;
             if (zoomLevelInput) zoomLevelInput.value = Math.round(appState.scale * 100);
 
             drawCanvas();
@@ -691,8 +786,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // ペイント中の場合
-            if (appState.isPainting) {
+            // ペイント中または図形移動中の場合
+            if (appState.isPainting || appState.movingStroke) {
                 handleCanvasMouseMove(e);
                 return;
             }
@@ -711,7 +806,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleTouchEnd(e) {
         if (gestureState.isPinching) {
-            if (e.touches.length === 0) {
+            if (e.type === 'touchcancel' || !e.touches || e.touches.length === 0) {
                 gestureState.isPinching = false;
                 gestureState.ignoreClicksUntil = Date.now() + 300;
             }
@@ -723,13 +818,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (appState.isPainting) {
+        if (appState.isPainting || appState.movingStroke) {
             handleCanvasMouseUp(e);
             return;
         }
 
         if (gestureState.isOneFingerPan) {
             gestureState.isOneFingerPan = false;
+            if (e.type === 'touchcancel') return;
 
             const touch = (e.changedTouches && e.changedTouches[0]) || null;
             if (!touch) return;
@@ -742,8 +838,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 gestureState.ignoreClicksUntil = Date.now() + 200;
             }
 
+            // ズームインして画像をパン移動している最中はフリックめくり誤爆を防ぐ
+            const container = canvas.parentElement;
+            const isZoomedPan = !appState.isAutoFit && container && (container.scrollWidth > container.clientWidth + 4);
+
             // 素早いフリック操作のみ「めくり」を発動（ゆっくりドラッグした場合は画像移動のみ）
-            const isHorizontalFlick = dt < 350 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5 && (Math.abs(dx) / dt > 0.35);
+            const isHorizontalFlick = !isZoomedPan && dt < 350 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5 && (Math.abs(dx) / dt > 0.35);
 
             if (isHorizontalFlick && !appState.isCalibrating && !appState.isPriceCalibrating) {
                 if (dx < 0) {
@@ -946,13 +1046,25 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Start dragging if close to the edge (ペイント中はマスクより描画を優先)
-        if (!appState.paintColor && Math.abs(coords.x - appState.visibleWidth) < threshold) {
+        // Start dragging if close to the edge (ペイント・移動中はマスクより優先)
+        if (!appState.isFinished && !appState.paintColor && !(appState.paintTool === 'move' && appState.strokes.length > 0) && Math.abs(coords.x - appState.visibleWidth) < threshold) {
             if (isTextInputOpen()) closeTextInput();
             appState.isDraggingMask = true;
             canvas.style.cursor = 'ew-resize';
             if (e.cancelable) e.preventDefault(); // Prevent text selection
             return;
+        }
+
+        // 移動ツールは色が未選択でも既存図形を移動可能
+        if (appState.paintTool === 'move' && appState.strokes.length > 0) {
+            if (e.cancelable) e.preventDefault();
+            if (isTextInputOpen()) closeTextInput();
+            const hitTol = (e.touches ? 24 : 12) / scale;
+            const hit = findStrokeAt(coords.x, coords.y, hitTol);
+            if (hit) {
+                appState.movingStroke = { stroke: hit, last: { x: coords.x, y: coords.y } };
+                return;
+            }
         }
 
         // PC マウスドラッグによるパン移動（ペイントなし・マスク端なし時）
@@ -985,8 +1097,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeTextInput();
             }
             if (tool === 'move') {
-                const hit = findStrokeAt(coords.x, coords.y, 12 / scale);
-                if (hit) appState.movingStroke = { stroke: hit, last: { x: coords.x, y: coords.y } };
                 return;
             }
             appState.isPainting = true;
@@ -1293,13 +1403,40 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    //  ZOOM
+    //  ZOOM & AUTO-FIT SCALE
     // ==========================================
+    function computeFitScale(img = appState.image) {
+        const container = canvas ? canvas.parentElement : null;
+        if (!container || !img || !img.width || !img.height) return 0.7;
+
+        const style = window.getComputedStyle(container);
+        const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+        const padY = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+
+        const availW = Math.max(50, container.clientWidth - padX);
+        const availH = Math.max(50, container.clientHeight - padY);
+
+        // PC・スマホ・タブレットすべてで画像全体（横幅・縦幅とも）がキャンバス領域に収まる倍率を算出
+        const fit = Math.min(availW / img.width, availH / img.height);
+        return Math.max(0.05, Math.min(5.0, fit));
+    }
+
     function handleZoom(delta, originPoint = null) {
         if (!appState.image) return;
+        const fitScale = computeFitScale(appState.image);
+        const minScale = Math.min(0.2, fitScale);
         const oldScale = appState.scale || 1.0;
         let newScale = oldScale + delta;
-        newScale = Math.max(0.2, Math.min(5.0, newScale));
+
+        // ズームアウト時に fitScale を跨ぐ場合は、画面ぴったりフィット倍率にスナップ
+        if (delta < 0 && oldScale > fitScale + 0.002 && newScale <= fitScale + 0.02) {
+            newScale = fitScale;
+        } else if (delta < 0 && oldScale >= fitScale - 0.002) {
+            newScale = Math.max(fitScale, newScale);
+        } else {
+            newScale = Math.max(minScale, Math.min(5.0, newScale));
+        }
+
         if (Math.abs(newScale - oldScale) < 0.001) return;
 
         const container = canvas.parentElement;
@@ -1321,16 +1458,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        appState.scale = Math.round(newScale * 100) / 100;
+        const isFit = Math.abs(newScale - fitScale) < 0.005;
+        appState.isAutoFit = isFit;
+        appState.scale = isFit ? fitScale : (Math.round(newScale * 1000) / 1000);
         if (zoomLevelInput) zoomLevelInput.value = Math.round(appState.scale * 100);
         drawCanvas();
 
         if (container && pivotImgX !== undefined) {
-            const newRect = canvas.getBoundingClientRect();
-            const currentPivotScreenX = newRect.left + pivotImgX * (newRect.width / appState.image.width);
-            const currentPivotScreenY = newRect.top + pivotImgY * (newRect.height / appState.image.height);
-            container.scrollLeft += currentPivotScreenX - originScreenX;
-            container.scrollTop += currentPivotScreenY - originScreenY;
+            if (isFit) {
+                container.scrollLeft = 0;
+                container.scrollTop = 0;
+            } else {
+                const newRect = canvas.getBoundingClientRect();
+                const currentPivotScreenX = newRect.left + pivotImgX * (newRect.width / appState.image.width);
+                const currentPivotScreenY = newRect.top + pivotImgY * (newRect.height / appState.image.height);
+                container.scrollLeft += currentPivotScreenX - originScreenX;
+                container.scrollTop += currentPivotScreenY - originScreenY;
+            }
         }
     }
 
@@ -1353,8 +1497,14 @@ document.addEventListener('DOMContentLoaded', () => {
         appState.animating = false;
     }
 
+    function isImageFile(f) {
+        if (!f) return false;
+        if (f.type && f.type.startsWith('image/')) return true;
+        return /\.(jpe?g|png|gif|webp|bmp|svg|avif|heic|heif)$/i.test(f.name || '');
+    }
+
     function handleFolderUpload(e) {
-        const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+        const files = Array.from(e.target.files).filter(isImageFile);
         e.target.value = '';
         if (files.length === 0) return;
 
@@ -1373,7 +1523,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 画像ファイルを個別選択した場合（複数可）
     function handleImageFileSelect(e) {
-        const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+        const files = Array.from(e.target.files).filter(isImageFile);
         e.target.value = '';
         if (files.length === 0) return;
 
@@ -1449,7 +1599,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         appState.history = [];
         appState.isFinished = false;
-        appState.scale = 0.7;
         appState.candleWidth = null;
         appState.isCalibrating = false;
         appState.calibrationClicks = [];
@@ -1459,7 +1608,6 @@ document.addEventListener('DOMContentLoaded', () => {
         appState.priceCalibrated = false;
         appState.priceReadMode = false;
         appState.showCrosshair = false;
-        if (zoomLevelInput) zoomLevelInput.value = 70;
 
         // Reset PL
         appState.avgSellPrice = 0;
@@ -1471,6 +1619,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset Paint State
         appState.strokes = [];
         appState.currentStroke = null;
+        appState.movingStroke = null;
         appState.isPainting = false;
 
         // Reset UI inputs
@@ -1497,6 +1646,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (messageEl) messageEl.style.display = 'none';
         canvas.parentElement.classList.add('has-image');
+
+        // コンテナのレイアウト確定後にPC・スマホ・タブレット共通で画像全体が収まる倍率を計算
+        appState.isAutoFit = true;
+        appState.scale = computeFitScale(img);
+        if (zoomLevelInput) zoomLevelInput.value = Math.round(appState.scale * 100);
 
         if (calibrateBtn) {
             calibrateBtn.textContent = '📏 ローソク足幅を計測';
@@ -1571,24 +1725,30 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = canvas.parentElement;
         if (!appState.image || !container) return;
 
-        // アニメーションを即キャンセル
-        if (appState.animationFrameId) {
-            cancelAnimationFrame(appState.animationFrameId);
-            appState.animationFrameId = null;
-        }
-        appState.animating = false;
+        cancelSlideAnimation();
         stopAutoPlay();
         stopAutoRewind();
-        
-        const scale = appState.scale || 1.0;
-        // 現在の表示エリア（コンテナ）の右端にあたる画像上のX座標を計算
-        // モバイルブラウザでの誤差を考慮して算出
-        const scrollLeft = container.scrollLeft;
-        const viewportWidth = container.clientWidth;
-        let viewportRightX = (scrollLeft + viewportWidth) / scale;
-        
+
+        let viewportRightX = appState.totalWidth;
+
+        // ユーザーが手動でズームインして横スクロールが発生している場合のみ、現在表示中の右端座標を計算
+        if (!appState.isAutoFit && container.scrollWidth > container.clientWidth + 4) {
+            const containerRect = container.getBoundingClientRect();
+            const canvasRect = canvas.getBoundingClientRect();
+            const style = window.getComputedStyle(container);
+            const padRight = parseFloat(style.paddingRight) || 0;
+            const visibleRightScreenX = containerRect.right - padRight;
+            if (canvasRect.width > 0) {
+                viewportRightX = (visibleRightScreenX - canvasRect.left) * (appState.image.width / canvasRect.width);
+            }
+            // すでに現在の表示範囲右端までめくられている状態で再度押した場合は画像右端まで全開にする
+            if (appState.visibleWidth >= viewportRightX - 2) {
+                viewportRightX = appState.totalWidth;
+            }
+        }
+
         // 画像の右端を超えないように調整
-        if (viewportRightX > appState.totalWidth) {
+        if (viewportRightX >= appState.totalWidth - 2) {
             viewportRightX = appState.totalWidth;
         }
 
@@ -1613,8 +1773,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         drawCanvas();
-        // スクロール位置を同期（特にモバイルでの安定性のため）
-        autoScrollToCurrentPosition(true);
     }
 
     // ==========================================
@@ -1809,11 +1967,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!appState.image) return;
 
         const scale = appState.scale || 1.0;
-        const dpr = Math.min(window.devicePixelRatio || 1, 3);
-        const cssWidth = Math.round(appState.image.width * scale);
-        const cssHeight = Math.round(appState.image.height * scale);
-        const targetWidth = Math.round(cssWidth * dpr);
-        const targetHeight = Math.round(cssHeight * dpr);
+        const cssWidth = Math.max(1, Math.floor(appState.image.width * scale));
+        const cssHeight = Math.max(1, Math.floor(appState.image.height * scale));
+
+        // iOS / iPadOS Safari のキャンバス上限 (4096px / 約1677万画素) を超えないよう DPR を自動調整
+        const maxCanvasDim = 4096;
+        const maxCanvasArea = 16000000;
+        let dpr = Math.min(window.devicePixelRatio || 1, 3);
+        if (cssWidth * dpr > maxCanvasDim) dpr = maxCanvasDim / cssWidth;
+        if (cssHeight * dpr > maxCanvasDim) dpr = Math.min(dpr, maxCanvasDim / cssHeight);
+        if ((cssWidth * dpr) * (cssHeight * dpr) > maxCanvasArea) {
+            dpr = Math.min(dpr, Math.sqrt(maxCanvasArea / (cssWidth * cssHeight)));
+        }
+
+        const targetWidth = Math.max(1, Math.round(cssWidth * dpr));
+        const targetHeight = Math.max(1, Math.round(cssHeight * dpr));
 
         let resized = false;
         if (canvas.width !== targetWidth) {
@@ -1832,7 +2000,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         ctx.save();
-        ctx.scale(scale * dpr, scale * dpr);
+        ctx.scale(targetWidth / appState.image.width, targetHeight / appState.image.height);
 
         ctx.drawImage(appState.image, 0, 0);
 
@@ -1922,6 +2090,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function autoScrollToCurrentPosition(instant = false) {
         const container = canvas.parentElement;
         if (!container || !appState.image) return;
+
+        // 画像全体が画面内に収まっている場合はスクロール不要
+        if (appState.isAutoFit || container.scrollWidth <= container.clientWidth + 4) {
+            if (container.scrollLeft !== 0) container.scrollLeft = 0;
+            return;
+        }
 
         const scale = appState.scale || 1.0;
         const edgePositionPx = appState.visibleWidth * scale;
